@@ -2,7 +2,21 @@
 
 Source PRD: `docs/prd/codebase-chat-assistant-prd.md`
 
-Status: proposed, pending user approval before GitHub publication.
+Status: published to GitHub with `needs-triage`.
+
+GitHub issues:
+
+- #1: Bootstrap the local monorepo and backend service shell - https://github.com/v-pramod/codebase-assistant/issues/1
+- #2: Ingest a public GitHub repo as a tracked background job - https://github.com/v-pramod/codebase-assistant/issues/2
+- #3: Filter repository files and report skipped content - https://github.com/v-pramod/codebase-assistant/issues/3
+- #4: Parse files into citation-ready code chunks - https://github.com/v-pramod/codebase-assistant/issues/4
+- #5: Persist embeddings and keyword index for the active snapshot - https://github.com/v-pramod/codebase-assistant/issues/5
+- #6: Answer repo-scoped questions with cited evidence - https://github.com/v-pramod/codebase-assistant/issues/6
+- #7: Persist chat sessions and stream cited answers over SSE - https://github.com/v-pramod/codebase-assistant/issues/7
+- #8: Browse indexed repositories and cited source in the React UI - https://github.com/v-pramod/codebase-assistant/issues/8
+- #9: Refresh repositories incrementally without breaking active answers - https://github.com/v-pramod/codebase-assistant/issues/9
+- #10: Preserve and display stale citation snapshots after refresh - https://github.com/v-pramod/codebase-assistant/issues/10
+- #11: Evaluate the full RAG flow with golden public repositories - https://github.com/v-pramod/codebase-assistant/issues/11
 
 ## Proposed Breakdown
 
