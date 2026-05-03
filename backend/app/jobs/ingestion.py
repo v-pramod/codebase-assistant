@@ -53,3 +53,12 @@ class InMemoryRepositoryRegistry:
 
     def get_job(self, job_id: str) -> IngestionJobState | None:
         return self._jobs.get(job_id)
+
+    def list_repositories(self) -> list[TrackedRepository]:
+        return list(self._repositories_by_url.values())
+
+    def get_repository(self, repo_id: str) -> TrackedRepository | None:
+        for repository in self._repositories_by_url.values():
+            if repository.repo_id == repo_id:
+                return repository
+        return None
