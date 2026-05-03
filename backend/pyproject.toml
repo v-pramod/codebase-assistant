@@ -1,0 +1,40 @@
+[project]
+name = "codebase-assistant-backend"
+version = "0.1.0"
+description = "Local backend for public GitHub codebase RAG ingestion and chat."
+requires-python = ">=3.12"
+dependencies = [
+    "alembic>=1.13.0",
+    "fastapi>=0.115.0",
+    "pathspec>=0.12.1",
+    "pydantic-settings>=2.6.0",
+    "python-multipart>=0.0.12",
+    "redis>=5.1.0",
+    "rq>=2.0.0",
+    "sqlalchemy>=2.0.36",
+    "uvicorn[standard]>=0.32.0",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.27.2",
+    "mypy>=1.13.0",
+    "pytest>=8.3.3",
+    "ruff>=0.7.4",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+packages = ["app"]

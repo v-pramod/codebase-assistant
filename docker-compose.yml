@@ -1,0 +1,32 @@
+services:
+  api:
+    build:
+      context: ./backend
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    environment:
+      CODEBASE_ASSISTANT_REDIS_URL: redis://redis:6379/0
+    ports:
+      - "8000:8000"
+    volumes:
+      - backend-data:/data/backend
+    depends_on:
+      - redis
+
+  worker:
+    build:
+      context: ./backend
+    command: python -m app.worker
+    environment:
+      CODEBASE_ASSISTANT_REDIS_URL: redis://redis:6379/0
+    volumes:
+      - backend-data:/data/backend
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+volumes:
+  backend-data:
