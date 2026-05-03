@@ -55,9 +55,7 @@ def filter_repository_files(
             "Repository exceeds configured indexed file limit before embedding."
         )
 
-    skipped = Counter(
-        decision.reason for decision in decisions if decision.reason is not None
-    )
+    skipped = Counter(decision.reason for decision in decisions if decision.reason is not None)
     return FileFilterReport(decisions=decisions, skipped_counts=dict(skipped))
 
 

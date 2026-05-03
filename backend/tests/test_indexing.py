@@ -63,8 +63,7 @@ def test_keyword_and_vector_queries_are_filtered_to_active_snapshot(tmp_path: Pa
     index_chunks("repo-1", "snap-stale", stale, provider, vector_store, keyword_index)
 
     assert [
-        record.metadata["path"]
-        for record in vector_store.active_records("repo-1", "snap-active")
+        record.metadata["path"] for record in vector_store.active_records("repo-1", "snap-active")
     ] == ["active.py"]
     assert [hit.path for hit in keyword_index.search_active("repo-1", "snap-active", "needle")] == [
         "active.py"

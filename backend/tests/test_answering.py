@@ -50,8 +50,7 @@ def test_answers_use_active_snapshot_evidence_and_inline_citations(tmp_path: Pat
     assert result.refused is False
     assert result.answer == "The target behavior is implemented in `active.py:1-2`."
     assert [
-        (citation.path, citation.start_line, citation.end_line)
-        for citation in result.citations
+        (citation.path, citation.start_line, citation.end_line) for citation in result.citations
     ] == [("active.py", 1, 2)]
 
 

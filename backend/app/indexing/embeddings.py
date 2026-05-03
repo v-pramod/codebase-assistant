@@ -10,7 +10,8 @@ class EmbeddingProviderError(Exception):
 
 
 class EmbeddingProvider(Protocol):
-    model: str
+    @property
+    def model(self) -> str: ...
 
     def embed_texts(self, texts: list[str]) -> list[list[float]]: ...
 

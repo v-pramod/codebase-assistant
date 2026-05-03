@@ -6,7 +6,9 @@ from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from app.api.runtime import StreamDependencies, build_stream_dependencies
 from app.chat.store import ChatMessageRecord, SQLiteChatStore
+from app.chat.streaming import stream_chat_answer
 from app.core.config import get_settings
 from app.core.errors import AppError
 from app.files.browser import list_file_tree, read_file_preview
@@ -17,6 +19,7 @@ from app.jobs.ingestion import InMemoryRepositoryRegistry, TrackedRepository
 router = APIRouter()
 _registry = InMemoryRepositoryRegistry(Path("../data/backend/clones"))
 _chat_store = SQLiteChatStore(Path("../data/backend/chat.sqlite3"))
+_stream_dependencies_override: StreamDependencies | None = None
 
 
 class RepositorySubmission(BaseModel):
@@ -29,6 +32,7 @@ class ChatSessionSubmission(BaseModel):
 
 class ChatMessageSubmission(BaseModel):
     content: str
+    snapshot_id: str | None = None
 
 
 @router.get("/health")
@@ -112,25 +116,51 @@ def list_chat_sessions(repository_id: str) -> dict[str, list[dict[str, str]]]:
 @router.get("/chat-sessions/{session_id}/messages")
 def list_chat_messages(session_id: str) -> dict[str, list[dict[str, object]]]:
     return {
-        "messages": [
-            _message_payload(message) for message in _chat_store.list_messages(session_id)
-        ]
+        "messages": [_message_payload(message) for message in _chat_store.list_messages(session_id)]
     }
 
 
 @router.post("/chat-sessions/{session_id}/messages/stream")
 def stream_chat_message(session_id: str, payload: ChatMessageSubmission) -> StreamingResponse:
     def events() -> Iterator[str]:
-        # Full answer streaming is wired once live retrieval dependencies are available to the API.
-        yield _sse(
-            "error",
-            {
-                "code": "chat_stream_unavailable",
-                "message": "Chat streaming dependencies are not configured for the API yet.",
-                "session_id": session_id,
-                "content": payload.content,
-            },
-        )
+        try:
+            session = _chat_store.get_session(session_id)
+            if session is None:
+                raise AppError("chat_session_not_found", "Chat session was not found.", 404)
+            repository = _require_repository(session.repo_id)
+            snapshot_id = payload.snapshot_id or repository.active_snapshot_id
+            if snapshot_id is None:
+                raise AppError(
+                    "repository_not_indexed",
+                    "Repository has no active snapshot for chat streaming.",
+                    409,
+                )
+            dependencies = _stream_dependencies()
+            for event in stream_chat_answer(
+                _chat_store,
+                session_id,
+                repository.repo_id,
+                snapshot_id,
+                payload.content,
+                dependencies.embedding_provider,
+                dependencies.vector_store,
+                dependencies.keyword_index,
+                dependencies.chat_provider,
+            ):
+                yield _sse(str(event["event"]), event["data"])
+        except AppError as exc:
+            yield _sse(
+                "error",
+                {"code": exc.code, "message": exc.message, "details": exc.details},
+            )
+        except Exception:
+            yield _sse(
+                "error",
+                {
+                    "code": "chat_stream_failed",
+                    "message": "Chat streaming failed before completion.",
+                },
+            )
 
     return StreamingResponse(events(), media_type="text/event-stream")
 
@@ -176,6 +206,7 @@ def _repository_payload(repo: TrackedRepository) -> dict[str, object]:
         "phase": repo.job.phase,
         "warnings": repo.job.warnings,
         "skipped": repo.job.skipped,
+        "active_snapshot_id": repo.active_snapshot_id,
     }
 
 
@@ -213,3 +244,14 @@ def _file_limits() -> FileFilterLimits:
 
 def _sse(event: str, data: object) -> str:
     return f"event: {event}\ndata: {json.dumps(data)}\n\n"
+
+
+def _stream_dependencies() -> StreamDependencies:
+    if _stream_dependencies_override is not None:
+        return _stream_dependencies_override
+    return build_stream_dependencies(get_settings())
+
+
+def set_stream_dependencies_for_tests(dependencies: StreamDependencies | None) -> None:
+    global _stream_dependencies_override
+    _stream_dependencies_override = dependencies

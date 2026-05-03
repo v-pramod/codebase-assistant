@@ -58,9 +58,22 @@ class SQLiteChatStore:
                 (repo_id,),
             ).fetchall()
         return [
-            ChatSessionRecord(str(row[0]), str(row[1]), str(row[2]), str(row[3]))
-            for row in rows
+            ChatSessionRecord(str(row[0]), str(row[1]), str(row[2]), str(row[3])) for row in rows
         ]
+
+    def get_session(self, session_id: str) -> ChatSessionRecord | None:
+        with sqlite3.connect(self.db_path) as connection:
+            row = connection.execute(
+                """
+                SELECT session_id, repo_id, title, created_at
+                FROM chat_sessions
+                WHERE session_id = ?
+                """,
+                (session_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        return ChatSessionRecord(str(row[0]), str(row[1]), str(row[2]), str(row[3]))
 
     def add_message(
         self,

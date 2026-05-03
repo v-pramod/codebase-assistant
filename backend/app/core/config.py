@@ -6,7 +6,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="CODEBASE_ASSISTANT_", env_file=".env")
+    model_config = SettingsConfigDict(
+        env_prefix="CODEBASE_ASSISTANT_", env_file=".env", extra="ignore"
+    )
 
     data_dir: Path = Field(default=Path("../data/backend"))
     sqlite_path: Path = Field(default=Path("../data/backend/app.sqlite3"))
@@ -19,6 +21,9 @@ class Settings(BaseSettings):
     chunk_max_lines: int = 80
     chunk_overlap_lines: int = 10
     parser_version: str = "plain-symbol-v1"
+    openrouter_api_key: str | None = None
+    openrouter_chat_model: str = "deepseek/deepseek-chat"
+    openrouter_embedding_model: str = "openai/text-embedding-3-small"
 
     def diagnostics(self) -> dict[str, str | int]:
         return {
@@ -31,6 +36,8 @@ class Settings(BaseSettings):
             "max_repo_bytes": self.max_repo_bytes,
             "max_indexed_files": self.max_indexed_files,
             "parser_version": self.parser_version,
+            "openrouter_chat_model": self.openrouter_chat_model,
+            "openrouter_embedding_model": self.openrouter_embedding_model,
         }
 
 

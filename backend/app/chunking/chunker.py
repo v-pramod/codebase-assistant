@@ -159,9 +159,7 @@ def _extract_symbols(language: str, lines: list[str]) -> list[tuple[int, str, st
             match = re.match(r"(?:async\s+)?def\s+(\w+)|class\s+(\w+)", stripped)
             if match:
                 name = match.group(1) or match.group(2)
-                symbols.append(
-                    (line_number, "function" if match.group(1) else "class", name)
-                )
+                symbols.append((line_number, "function" if match.group(1) else "class", name))
         elif language in {"javascript", "typescript"}:
             pattern = (
                 r"(?:export\s+)?(?:async\s+)?function\s+(\w+)"

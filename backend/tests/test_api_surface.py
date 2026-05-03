@@ -1,18 +1,44 @@
+from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
+from app.api import routes
+from app.api.runtime import StreamDependencies
+from app.chunking.chunker import chunk_file
 from app.core.errors import AppError
 from app.files.browser import list_file_tree, read_file_preview
+from app.indexing.indexer import index_chunks
+from app.indexing.keyword_index import SQLiteKeywordIndex
+from app.indexing.vector_store import InMemoryChunkVectorStore
 from app.ingestion.filtering import FileFilterLimits
 from app.main import create_app
+from app.retrieval.answering import Citation
+
+
+@dataclass
+class DeterministicEmbeddingProvider:
+    model: str = "openrouter/test-embedding"
+
+    def embed_texts(self, texts: list[str]) -> list[list[float]]:
+        return [[1.0, 0.0, 0.0] if "target" in text else [0.0, 1.0, 0.0] for text in texts]
+
+
+@dataclass
+class CitedChatProvider:
+    model: str = "test-chat"
+
+    def answer(self, prompt: str, citations: list[Citation]) -> str:
+        return f"See `{citations[0].label}`."
 
 
 def test_repository_selection_and_chat_session_endpoints_are_available() -> None:
     client = TestClient(create_app())
 
-    submitted = client.post("/api/repositories", json={"url": "https://github.com/encode/starlette"})
+    submitted = client.post(
+        "/api/repositories", json={"url": "https://github.com/encode/starlette"}
+    )
     repo_id = submitted.json()["repository_id"]
 
     repositories = client.get("/api/repositories")
@@ -33,7 +59,7 @@ def test_repository_selection_and_chat_session_endpoints_are_available() -> None
     assert messages.json() == {"messages": []}
 
 
-def test_chat_stream_endpoint_returns_sse_error_until_live_dependencies_are_configured() -> None:
+def test_chat_stream_endpoint_returns_indexing_error_before_active_snapshot() -> None:
     client = TestClient(create_app())
 
     submitted = client.post("/api/repositories", json={"url": "https://github.com/encode/httpcore"})
@@ -48,7 +74,43 @@ def test_chat_stream_endpoint_returns_sse_error_until_live_dependencies_are_conf
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/event-stream")
     assert "event: error" in response.text
-    assert "chat_stream_unavailable" in response.text
+    assert "repository_not_indexed" in response.text
+
+
+def test_chat_stream_endpoint_uses_runtime_dependencies_for_sse(tmp_path: Path) -> None:
+    client = TestClient(create_app())
+    submitted = client.post("/api/repositories", json={"url": "https://github.com/encode/sse"})
+    repo_id = submitted.json()["repository_id"]
+    repository = routes._registry.get_repository(repo_id)
+    assert repository is not None
+    repository.active_snapshot_id = "snap-1"
+    created = client.post(f"/api/repositories/{repo_id}/chat-sessions", json={"title": "Chat"})
+    vector_store = InMemoryChunkVectorStore()
+    keyword_index = SQLiteKeywordIndex(tmp_path / "index.sqlite3")
+    embedding_provider = DeterministicEmbeddingProvider()
+    chunks = chunk_file(repo_id, "snap-1", "app.py", "def target():\n    return 1\n")
+    index_chunks(repo_id, "snap-1", chunks, embedding_provider, vector_store, keyword_index)
+    routes.set_stream_dependencies_for_tests(
+        StreamDependencies(
+            embedding_provider=embedding_provider,
+            vector_store=vector_store,
+            keyword_index=keyword_index,
+            chat_provider=CitedChatProvider(),
+        )
+    )
+    try:
+        response = client.post(
+            f"/api/chat-sessions/{created.json()['session_id']}/messages/stream",
+            json={"content": "target"},
+        )
+    finally:
+        routes.set_stream_dependencies_for_tests(None)
+
+    assert "event: retrieval_started" in response.text
+    assert "event: sources" in response.text
+    assert "event: token" in response.text
+    assert "event: final" in response.text
+    assert "app.py" in response.text
 
 
 def test_file_browser_lists_skipped_files_and_blocks_unsafe_previews(tmp_path: Path) -> None:

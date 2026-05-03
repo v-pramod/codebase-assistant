@@ -24,6 +24,7 @@ class TrackedRepository:
     name: str
     local_path: Path
     job: IngestionJobState
+    active_snapshot_id: str | None = None
 
 
 class InMemoryRepositoryRegistry:

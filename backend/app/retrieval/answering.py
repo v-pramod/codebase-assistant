@@ -51,7 +51,8 @@ class AnsweringOptions:
 
 
 class ChatProvider(Protocol):
-    model: str
+    @property
+    def model(self) -> str: ...
 
     def answer(self, prompt: str, citations: list[Citation]) -> str: ...
 
@@ -85,8 +86,7 @@ def answer_question(
         closest = ", ".join(citation.label for citation in citations) or "no close references"
         return AnswerResult(
             answer=(
-                "I do not have enough indexed evidence to answer. "
-                f"Closest references: {closest}."
+                f"I do not have enough indexed evidence to answer. Closest references: {closest}."
             ),
             citations=citations,
             refused=True,

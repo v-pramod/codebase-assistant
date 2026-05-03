@@ -26,9 +26,7 @@ def validate_github_repo_url(raw_url: str) -> GitHubRepositoryURL:
     if name.endswith(".git"):
         name = name[:-4]
     if not owner or not name or any(part in {".", ".."} for part in (owner, name)):
-        raise AppError(
-            "invalid_repo_url", "Repository owner and name must be safe path segments."
-        )
+        raise AppError("invalid_repo_url", "Repository owner and name must be safe path segments.")
     return GitHubRepositoryURL(
         canonical_url=f"https://github.com/{owner}/{name}", owner=owner, name=name
     )
