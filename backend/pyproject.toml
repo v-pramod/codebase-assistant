@@ -5,7 +5,9 @@ description = "Local backend for public GitHub codebase RAG ingestion and chat."
 requires-python = ">=3.12"
 dependencies = [
     "alembic>=1.13.0",
+    "chromadb>=0.5.23",
     "fastapi>=0.115.0",
+    "httpx>=0.27.2",
     "pathspec>=0.12.1",
     "pydantic-settings>=2.6.0",
     "python-multipart>=0.0.12",
@@ -17,7 +19,6 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "httpx>=0.27.2",
     "mypy>=1.13.0",
     "pytest>=8.3.3",
     "ruff>=0.7.4",
