@@ -18,6 +18,7 @@ from app.ingestion.filtering import FileFilterLimits
 from app.ingestion.github import validate_github_repo_url
 from app.ingestion.refresh import latest_default_branch_commit, plan_incremental_refresh
 from app.jobs.ingestion import IngestionJobState, InMemoryRepositoryRegistry, TrackedRepository
+from app.jobs.initial_ingestion import ingest_repository_now
 
 router = APIRouter()
 _registry = InMemoryRepositoryRegistry(Path("../data/backend/clones"))
@@ -52,6 +53,20 @@ def diagnostics() -> dict[str, str | int]:
 def submit_repository(payload: RepositorySubmission) -> dict[str, str]:
     repo_url = validate_github_repo_url(payload.url)
     repository = _registry.submit(repo_url)
+    if repository.active_snapshot_id is None and repository.job.status == "queued":
+        try:
+            dependencies = _stream_dependencies()
+            ingest_repository_now(
+                repository,
+                get_settings(),
+                dependencies.embedding_provider,
+                dependencies.vector_store,
+                dependencies.keyword_index,
+            )
+        except Exception as exc:
+            repository.job.status = "failed"
+            repository.job.phase = "ingestion_failed"
+            repository.job.error = _safe_error_message(exc)
     return {
         "repository_id": repository.repo_id,
         "url": repository.url,
@@ -348,3 +363,9 @@ def _stream_dependencies() -> StreamDependencies:
 def set_stream_dependencies_for_tests(dependencies: StreamDependencies | None) -> None:
     global _stream_dependencies_override
     _stream_dependencies_override = dependencies
+
+
+def _safe_error_message(exc: Exception) -> str:
+    if isinstance(exc, AppError):
+        return exc.message
+    return str(exc) or "Repository ingestion failed."

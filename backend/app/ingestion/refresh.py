@@ -96,6 +96,33 @@ def latest_default_branch_commit(repo_path: Path) -> str:
     return _git_text(repo_path, "rev-parse", "HEAD")
 
 
+def clone_or_fetch_repository(repo_url: str, repo_path: Path) -> str:
+    repo_path.parent.mkdir(parents=True, exist_ok=True)
+    if (repo_path / ".git").is_dir():
+        _git_text(repo_path, "fetch", "--prune", "origin")
+        remote_head = _git_text(repo_path, "symbolic-ref", "refs/remotes/origin/HEAD")
+        branch = remote_head.removeprefix("refs/remotes/origin/")
+        _git_text(repo_path, "checkout", branch)
+        _git_text(repo_path, "reset", "--hard", f"origin/{branch}")
+    else:
+        try:
+            subprocess.run(
+                ["git", "clone", "--depth", "1", repo_url, str(repo_path)],
+                check=True,
+                text=True,
+                capture_output=True,
+            )
+        except subprocess.CalledProcessError as exc:
+            raise AppError(
+                "git_clone_failed", exc.stderr.strip() or "Git clone failed.", 500
+            ) from exc
+    return latest_default_branch_commit(repo_path)
+
+
+def list_repository_files_at_head(repo_path: Path) -> list[str]:
+    return _git_lines(repo_path, "ls-files")
+
+
 def _ensure_commit_available(repo_path: Path, commit: str) -> None:
     try:
         _git_text(repo_path, "cat-file", "-e", f"{commit}^{{commit}}")
