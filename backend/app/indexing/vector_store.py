@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from hashlib import sha256
 from importlib import import_module
 from typing import Any, Protocol
 
@@ -19,6 +20,16 @@ class ChunkVectorStore(Protocol):
     def add_records(self, records: list[VectorRecord], embedding_model: str) -> None: ...
 
     def active_records(self, repo_id: str, snapshot_id: str) -> list[VectorRecord]: ...
+
+    def deactivate_snapshot(self, repo_id: str, snapshot_id: str) -> None: ...
+
+    def copy_active_records(
+        self,
+        repo_id: str,
+        source_snapshot_id: str,
+        target_snapshot_id: str,
+        exclude_paths: set[str],
+    ) -> None: ...
 
 
 class InMemoryChunkVectorStore:
@@ -49,6 +60,38 @@ class InMemoryChunkVectorStore:
             and record.metadata.get("snapshot_id") == snapshot_id
             and record.metadata.get("active") is True
         ]
+
+    def deactivate_snapshot(self, repo_id: str, snapshot_id: str) -> None:
+        for record in self.records:
+            if (
+                record.metadata.get("repo_id") == repo_id
+                and record.metadata.get("snapshot_id") == snapshot_id
+            ):
+                record.metadata["active"] = False
+
+    def copy_active_records(
+        self,
+        repo_id: str,
+        source_snapshot_id: str,
+        target_snapshot_id: str,
+        exclude_paths: set[str],
+    ) -> None:
+        copies = []
+        for record in self.active_records(repo_id, source_snapshot_id):
+            if str(record.metadata.get("path")) in exclude_paths:
+                continue
+            metadata = dict(record.metadata)
+            metadata["snapshot_id"] = target_snapshot_id
+            metadata["active"] = True
+            copies.append(
+                VectorRecord(
+                    chunk_id=_copied_chunk_id(record.chunk_id, target_snapshot_id),
+                    embedding=list(record.embedding),
+                    text=record.text,
+                    metadata=metadata,
+                )
+            )
+        self.add_records(copies, self.embedding_model or "unknown")
 
 
 class ChromaChunkVectorStore:
@@ -91,3 +134,45 @@ class ChromaChunkVectorStore:
             )
             for index in range(len(ids))
         ]
+
+    def deactivate_snapshot(self, repo_id: str, snapshot_id: str) -> None:
+        result = self._collection.get(
+            where={"$and": [{"repo_id": repo_id}, {"snapshot_id": snapshot_id}]}
+        )
+        ids = result.get("ids", [])
+        if ids:
+            self._collection.update(ids=ids, metadatas=[{"active": False} for _ in ids])
+
+    def copy_active_records(
+        self,
+        repo_id: str,
+        source_snapshot_id: str,
+        target_snapshot_id: str,
+        exclude_paths: set[str],
+    ) -> None:
+        records = [
+            record
+            for record in self.active_records(repo_id, source_snapshot_id)
+            if str(record.metadata.get("path")) not in exclude_paths
+        ]
+        if not records:
+            return
+        copied = []
+        embedding_model = str(records[0].metadata.get("embedding_model") or "unknown")
+        for record in records:
+            metadata = dict(record.metadata)
+            metadata["snapshot_id"] = target_snapshot_id
+            metadata["active"] = True
+            copied.append(
+                VectorRecord(
+                    chunk_id=_copied_chunk_id(record.chunk_id, target_snapshot_id),
+                    embedding=record.embedding,
+                    text=record.text,
+                    metadata=metadata,
+                )
+            )
+        self.add_records(copied, embedding_model)
+
+
+def _copied_chunk_id(source_chunk_id: str, target_snapshot_id: str) -> str:
+    return sha256(f"{source_chunk_id}|{target_snapshot_id}".encode()).hexdigest()

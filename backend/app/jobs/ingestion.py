@@ -25,6 +25,7 @@ class TrackedRepository:
     local_path: Path
     job: IngestionJobState
     active_snapshot_id: str | None = None
+    active_commit: str | None = None
 
 
 class InMemoryRepositoryRegistry:
@@ -63,3 +64,14 @@ class InMemoryRepositoryRegistry:
             if repository.repo_id == repo_id:
                 return repository
         return None
+
+    def start_refresh(self, repository: TrackedRepository) -> IngestionJobState:
+        job = IngestionJobState(
+            job_id=str(uuid4()),
+            repo_id=repository.repo_id,
+            status="queued",
+            phase="refresh_queued",
+        )
+        repository.job = job
+        self._jobs[job.job_id] = job
+        return job
