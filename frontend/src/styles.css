@@ -119,6 +119,7 @@ small, .repo-tile small, .citation-list small { color: var(--muted); }
 .warning, .stream-error { color: var(--red); }
 .sessions-head { display: flex; align-items: center; justify-content: space-between; }
 .ghost-button { padding: 8px 12px; background: rgba(245,234,214,0.1); color: var(--ink); box-shadow: none; border: 1px solid var(--line); }
+.refresh-button { display: flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid rgba(120, 214, 180, 0.36); color: var(--oxide); background: rgba(120, 214, 180, 0.08); border-radius: 999px; padding: 10px 12px; font-weight: 900; }
 
 .message-list { overflow: auto; padding-right: 6px; display: flex; flex-direction: column; gap: 14px; }
 .message { max-width: 82%; border: 1px solid var(--line); border-radius: 24px; padding: 16px; animation: rise 360ms ease both; }

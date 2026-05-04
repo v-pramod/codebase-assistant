@@ -8,6 +8,7 @@ export type Repository = {
   warnings: string[];
   skipped: Record<string, number>;
   active_snapshot_id: string | null;
+  active_commit: string | null;
 };
 
 export type IngestionJob = {
@@ -114,6 +115,18 @@ export function submitRepository(url: string) {
     status: string;
     phase: string;
   }>("/repositories", { method: "POST", body: JSON.stringify({ url }) });
+}
+
+export function refreshRepository(repositoryId: string) {
+  return request<{
+    job_id: string;
+    repository_id: string;
+    status: string;
+    phase: string;
+    warnings: string[];
+    skipped: Record<string, number>;
+    full_rebuild_available: boolean;
+  }>(`/repositories/${repositoryId}/refresh`, { method: "POST" });
 }
 
 export function getIngestionJob(jobId: string) {

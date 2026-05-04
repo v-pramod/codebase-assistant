@@ -1,6 +1,7 @@
 import json
 from collections.abc import Iterator
 from pathlib import Path
+from uuid import uuid4
 
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
@@ -12,9 +13,11 @@ from app.chat.streaming import stream_chat_answer
 from app.core.config import get_settings
 from app.core.errors import AppError
 from app.files.browser import list_file_tree, read_file_preview
+from app.indexing.indexer import promote_snapshot, stage_incremental_refresh
 from app.ingestion.filtering import FileFilterLimits
 from app.ingestion.github import validate_github_repo_url
-from app.jobs.ingestion import InMemoryRepositoryRegistry, TrackedRepository
+from app.ingestion.refresh import latest_default_branch_commit, plan_incremental_refresh
+from app.jobs.ingestion import IngestionJobState, InMemoryRepositoryRegistry, TrackedRepository
 
 router = APIRouter()
 _registry = InMemoryRepositoryRegistry(Path("../data/backend/clones"))
@@ -69,6 +72,65 @@ def get_repository(repository_id: str) -> dict[str, object]:
     if repository is None:
         raise AppError("repository_not_found", "Repository was not found.", 404)
     return _repository_payload(repository)
+
+
+@router.post("/repositories/{repository_id}/refresh", status_code=202)
+def refresh_repository(repository_id: str) -> dict[str, object]:
+    repository = _require_repository(repository_id)
+    job = _registry.start_refresh(repository)
+    try:
+        if repository.active_commit is None:
+            raise AppError(
+                "repository_not_indexed",
+                "Repository must have an indexed commit before refresh.",
+                409,
+            )
+        job.status = "running"
+        job.phase = "planning_refresh"
+        latest_commit = latest_default_branch_commit(repository.local_path)
+        plan = plan_incremental_refresh(
+            repository.local_path, repository.active_commit, latest_commit
+        )
+        job.warnings = plan.warnings
+        job.skipped = {
+            "added": len(plan.added),
+            "changed": len(plan.changed),
+            "deleted": len(plan.deleted),
+            "unchanged": len(plan.unchanged),
+        }
+        if repository.active_snapshot_id is not None and latest_commit != repository.active_commit:
+            job.phase = "staging_refresh"
+            pending_snapshot_id = f"pending-{uuid4()}"
+            dependencies = _stream_dependencies()
+            skipped = stage_incremental_refresh(
+                repository.repo_id,
+                repository.active_snapshot_id,
+                pending_snapshot_id,
+                repository.local_path,
+                plan,
+                dependencies.embedding_provider,
+                dependencies.vector_store,
+                dependencies.keyword_index,
+                _file_limits(),
+            )
+            job.skipped.update(skipped)
+            job.phase = "promoting_refresh"
+            repository.active_snapshot_id = promote_snapshot(
+                repository.repo_id,
+                repository.active_snapshot_id,
+                pending_snapshot_id,
+                dependencies.vector_store,
+                dependencies.keyword_index,
+            )
+            repository.active_commit = latest_commit
+        job.status = "succeeded"
+        job.phase = "refresh_promoted"
+        return _refresh_payload(job, plan.full_rebuild_available)
+    except AppError as exc:
+        job.status = "failed"
+        job.phase = "refresh_failed"
+        job.error = exc.message
+        return _refresh_payload(job, False)
 
 
 @router.get("/ingestion-jobs/{job_id}")
@@ -207,6 +269,19 @@ def _repository_payload(repo: TrackedRepository) -> dict[str, object]:
         "warnings": repo.job.warnings,
         "skipped": repo.job.skipped,
         "active_snapshot_id": repo.active_snapshot_id,
+        "active_commit": repo.active_commit,
+    }
+
+
+def _refresh_payload(job: IngestionJobState, full_rebuild_available: bool) -> dict[str, object]:
+    return {
+        "job_id": job.job_id,
+        "repository_id": job.repo_id,
+        "status": job.status,
+        "phase": job.phase,
+        "warnings": job.warnings,
+        "skipped": job.skipped,
+        "full_rebuild_available": full_rebuild_available,
     }
 
 

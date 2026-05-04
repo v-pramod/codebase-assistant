@@ -29,6 +29,7 @@ import {
   listChatSessions,
   listFileTree,
   listRepositories,
+  refreshRepository,
   streamChatMessage,
   submitRepository,
 } from "./api";
@@ -109,6 +110,15 @@ export default function App() {
       setSelectedRepoId(data.repository_id);
       setTrackedJobId(data.job_id);
       void queryClient.invalidateQueries({ queryKey: ["repositories"] });
+    },
+  });
+
+  const refreshRepo = useMutation({
+    mutationFn: () => refreshRepository(activeRepoId!),
+    onSuccess: (data) => {
+      setTrackedJobId(data.job_id);
+      void queryClient.invalidateQueries({ queryKey: ["repositories"] });
+      void queryClient.invalidateQueries({ queryKey: ["file-tree", activeRepoId] });
     },
   });
 
@@ -217,6 +227,13 @@ export default function App() {
             {repositories.data?.repositories.length === 0 && <EmptyState text="Submit a public GitHub HTTPS URL to begin." />}
           </div>
 
+          <button
+            className="refresh-button"
+            disabled={!activeRepoId || refreshRepo.isPending}
+            onClick={() => refreshRepo.mutate()}
+          >
+            <GitBranch size={15} /> {refreshRepo.isPending ? "Refreshing" : "Refresh index"}
+          </button>
           <StatusCard repo={selectedRepo} job={job.data ?? null} />
 
           <div className="sessions-head">
