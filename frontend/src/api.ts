@@ -32,6 +32,10 @@ export type Citation = {
   start_line: number;
   end_line: number;
   snippet: string;
+  commit_sha: string | null;
+  local_ref: string | null;
+  github_permalink: string | null;
+  stale: boolean;
 };
 
 export type ChatMessage = {
@@ -62,7 +66,7 @@ export type FilePreview = {
 
 export type StreamEvent =
   | { event: "retrieval_started"; data: Record<string, unknown> }
-  | { event: "sources"; data: { citations?: Citation[]; sources?: Citation[] } }
+  | { event: "sources"; data: Citation[] | { citations?: Citation[]; sources?: Citation[] } }
   | { event: "token"; data: { token?: string; delta?: string } }
   | { event: "final"; data: { message?: ChatMessage; citations?: Citation[]; content?: string } }
   | { event: "error"; data: { code: string; message: string; details?: unknown } };

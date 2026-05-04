@@ -152,10 +152,13 @@ export default function App() {
           setStream((current) => ({ ...current, status: "retrieving" }));
         }
         if (event.event === "sources") {
+          const citations = Array.isArray(event.data)
+            ? event.data
+            : event.data.citations ?? event.data.sources ?? [];
           setStream((current) => ({
             ...current,
             status: "streaming",
-            citations: event.data.citations ?? event.data.sources ?? [],
+            citations,
           }));
         }
         if (event.event === "token") {
@@ -319,11 +322,11 @@ function StreamingBubble({ stream, onCitation }: { stream: StreamState; onCitati
 
 function InlineCitations({ citations, onCitation }: { citations: Citation[]; onCitation: (citation: Citation) => void }) {
   if (citations.length === 0) return null;
-  return <div className="inline-citations">{citations.map((citation) => <button key={`${citation.path}:${citation.start_line}`} onClick={() => onCitation(citation)}>{citation.path}:{citation.start_line}-{citation.end_line}</button>)}</div>;
+  return <div className="inline-citations">{citations.map((citation) => <button className={citation.stale ? "stale" : ""} key={`${citation.path}:${citation.start_line}`} onClick={() => onCitation(citation)}>{citation.path}:{citation.start_line}-{citation.end_line}{citation.stale ? " stale" : ""}</button>)}</div>;
 }
 
 function CitationPanel({ citations, selected, onOpen }: { citations: Citation[]; selected: Citation | null; onOpen: (citation: Citation) => void }) {
-  return <div className="citation-list">{citations.slice(0, 8).map((citation) => <button className={selected?.path === citation.path && selected.start_line === citation.start_line ? "active" : ""} key={`${citation.path}:${citation.start_line}`} onClick={() => onOpen(citation)}><Braces size={15} /><span>{citation.path}</span><small>Lines {citation.start_line}-{citation.end_line}</small></button>)}{citations.length === 0 && <EmptyState text="Citations from streamed answers appear here." />}</div>;
+  return <div className="citation-list">{citations.slice(0, 8).map((citation) => <button className={selected?.path === citation.path && selected.start_line === citation.start_line ? "active" : ""} key={`${citation.path}:${citation.start_line}`} onClick={() => onOpen(citation)}><Braces size={15} /><span>{citation.path}</span><small>Lines {citation.start_line}-{citation.end_line}{citation.stale ? " / stale snapshot" : ""}</small>{citation.github_permalink && <a href={citation.github_permalink} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>Pinned GitHub source</a>}</button>)}{citations.length === 0 && <EmptyState text="Citations from streamed answers appear here." />}</div>;
 }
 
 function FileRow({ entry, active, onOpen }: { entry: FileEntry; active: boolean; onOpen: (path: string) => void }) {

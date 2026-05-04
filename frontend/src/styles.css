@@ -129,6 +129,7 @@ small, .repo-tile small, .citation-list small { color: var(--muted); }
 .message.streaming { box-shadow: 0 0 0 1px rgba(120, 214, 180, 0.16), 0 24px 70px rgba(120, 214, 180, 0.08); }
 .inline-citations { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
 .inline-citations button { border: 1px solid rgba(120,214,180,0.38); color: var(--oxide); background: rgba(120,214,180,0.08); border-radius: 999px; padding: 6px 9px; font-family: "JetBrains Mono", monospace; font-size: 0.72rem; }
+.inline-citations button.stale { border-color: rgba(224,106,63,0.55); color: var(--rust); background: rgba(224,106,63,0.1); }
 
 .prompt-form { display: grid; grid-template-columns: 1fr auto; gap: 10px; border: 1px solid var(--line); border-radius: 24px; padding: 10px; background: rgba(5, 7, 6, 0.7); }
 .prompt-form textarea { min-height: 64px; resize: none; padding: 8px; line-height: 1.45; }
@@ -137,6 +138,7 @@ small, .repo-tile small, .citation-list small { color: var(--muted); }
 .citation-list { max-height: 205px; }
 .citation-list button { display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; }
 .citation-list small { grid-column: 2; }
+.citation-list a { grid-column: 2; color: var(--brass); font-size: 0.72rem; text-decoration: none; }
 .file-row { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 8px; padding: 9px 10px; font-family: "JetBrains Mono", monospace; font-size: 0.78rem; }
 .file-row em { grid-column: 2; color: var(--rust); font-style: normal; font-size: 0.68rem; }
 

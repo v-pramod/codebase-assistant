@@ -192,6 +192,9 @@ def _serialize_citations(citations: list[Citation]) -> str:
                 "start_line": citation.start_line,
                 "end_line": citation.end_line,
                 "snippet": citation.snippet,
+                "commit_sha": citation.commit_sha,
+                "local_ref": citation.local_ref,
+                "github_permalink": citation.github_permalink,
             }
             for citation in citations
         ]
@@ -208,6 +211,9 @@ def _deserialize_citations(raw: str) -> list[Citation]:
             int(item["start_line"]),
             int(item["end_line"]),
             str(item["snippet"]),
+            str(item["commit_sha"]) if item.get("commit_sha") is not None else None,
+            str(item["local_ref"]) if item.get("local_ref") is not None else None,
+            str(item["github_permalink"]) if item.get("github_permalink") is not None else None,
         )
         for item in payload
         if isinstance(item, dict)

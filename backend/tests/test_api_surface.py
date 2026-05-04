@@ -136,3 +136,38 @@ def test_file_browser_lists_skipped_files_and_blocks_unsafe_previews(tmp_path: P
 
     with pytest.raises(AppError):
         read_file_preview(tmp_path, "../outside.py", FileFilterLimits(max_file_bytes=100))
+
+
+def test_chat_message_payload_marks_old_citation_snapshots_stale() -> None:
+    client = TestClient(create_app())
+    submitted = client.post("/api/repositories", json={"url": "https://github.com/encode/stale"})
+    repo_id = submitted.json()["repository_id"]
+    repository = routes._registry.get_repository(repo_id)
+    assert repository is not None
+    repository.active_snapshot_id = "snap-new"
+    created = client.post(f"/api/repositories/{repo_id}/chat-sessions", json={"title": "Chat"})
+    session_id = created.json()["session_id"]
+    routes._chat_store.add_message(
+        session_id,
+        "assistant",
+        "See app.py",
+        snapshot_id="snap-old",
+        citations=[
+            Citation(
+                "app.py",
+                1,
+                2,
+                "def old(): pass",
+                "abc123",
+                "/api/repositories/repo/files/content?path=app.py#L1-L2",
+                "https://github.com/encode/stale/blob/abc123/app.py#L1-L2",
+            )
+        ],
+    )
+
+    messages = client.get(f"/api/chat-sessions/{session_id}/messages")
+
+    citation = messages.json()["messages"][0]["citations"][0]
+    assert citation["stale"] is True
+    assert citation["commit_sha"] == "abc123"
+    assert citation["github_permalink"].endswith("/blob/abc123/app.py#L1-L2")

@@ -19,6 +19,9 @@ class Citation:
     start_line: int
     end_line: int
     snippet: str
+    commit_sha: str | None = None
+    local_ref: str | None = None
+    github_permalink: str | None = None
 
     @property
     def label(self) -> str:

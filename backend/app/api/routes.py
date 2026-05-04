@@ -177,8 +177,13 @@ def list_chat_sessions(repository_id: str) -> dict[str, list[dict[str, str]]]:
 
 @router.get("/chat-sessions/{session_id}/messages")
 def list_chat_messages(session_id: str) -> dict[str, list[dict[str, object]]]:
+    session = _chat_store.get_session(session_id)
+    repository = _registry.get_repository(session.repo_id) if session is not None else None
     return {
-        "messages": [_message_payload(message) for message in _chat_store.list_messages(session_id)]
+        "messages": [
+            _message_payload(message, repository.active_snapshot_id if repository else None)
+            for message in _chat_store.list_messages(session_id)
+        ]
     }
 
 
@@ -208,6 +213,8 @@ def stream_chat_message(session_id: str, payload: ChatMessageSubmission) -> Stre
                 dependencies.vector_store,
                 dependencies.keyword_index,
                 dependencies.chat_provider,
+                commit_sha=repository.active_commit,
+                repo_url=repository.url,
             ):
                 yield _sse(str(event["event"]), event["data"])
         except AppError as exc:
@@ -285,7 +292,14 @@ def _refresh_payload(job: IngestionJobState, full_rebuild_available: bool) -> di
     }
 
 
-def _message_payload(message: ChatMessageRecord) -> dict[str, object]:
+def _message_payload(
+    message: ChatMessageRecord, active_snapshot_id: str | None = None
+) -> dict[str, object]:
+    stale = bool(
+        message.snapshot_id is not None
+        and active_snapshot_id is not None
+        and message.snapshot_id != active_snapshot_id
+    )
     return {
         "message_id": message.message_id,
         "session_id": message.session_id,
@@ -299,6 +313,10 @@ def _message_payload(message: ChatMessageRecord) -> dict[str, object]:
                 "start_line": citation.start_line,
                 "end_line": citation.end_line,
                 "snippet": citation.snippet,
+                "commit_sha": citation.commit_sha,
+                "local_ref": citation.local_ref,
+                "github_permalink": citation.github_permalink,
+                "stale": stale,
             }
             for citation in message.citations
         ],

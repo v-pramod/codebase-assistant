@@ -62,6 +62,8 @@ def test_stream_persists_messages_and_final_matches_streamed_answer(tmp_path: Pa
             vector_store,
             keyword_index,
             RecordingChatProvider(),
+            commit_sha="abc123",
+            repo_url="https://github.com/owner/repo",
         )
     )
 
@@ -81,6 +83,13 @@ def test_stream_persists_messages_and_final_matches_streamed_answer(tmp_path: Pa
     assert [message.role for message in persisted] == ["user", "assistant"]
     assert persisted[-1].content == streamed_answer
     assert persisted[-1].citations[0].path == "app.py"
+    assert persisted[-1].citations[0].commit_sha == "abc123"
+    assert persisted[-1].citations[0].local_ref == (
+        "/api/repositories/repo-1/files/content?path=app.py#L1-L2"
+    )
+    assert persisted[-1].citations[0].github_permalink == (
+        "https://github.com/owner/repo/blob/abc123/app.py#L1-L2"
+    )
 
 
 def test_full_history_is_stored_but_prompt_uses_bounded_recent_window(tmp_path: Path) -> None:
