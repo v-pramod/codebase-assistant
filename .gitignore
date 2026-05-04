@@ -6,3 +6,5 @@ __pycache__/
 *.pyc
 data/
 .env
+node_modules/
+dist/
