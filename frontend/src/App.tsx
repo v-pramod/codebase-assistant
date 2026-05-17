@@ -43,6 +43,12 @@ type StreamState = {
 
 const EMPTY_STREAM: StreamState = { text: "", citations: [], status: "idle", error: null };
 
+const TERMINAL_REPOSITORY_STATUSES = new Set(["succeeded", "failed"]);
+
+function hasActiveRepositoryJob(repositories: { status: string }[] | undefined) {
+  return repositories?.some((repository) => !TERMINAL_REPOSITORY_STATUSES.has(repository.status)) ?? false;
+}
+
 export default function App() {
   const queryClient = useQueryClient();
   const [repoUrl, setRepoUrl] = useState("");
@@ -57,7 +63,7 @@ export default function App() {
   const repositories = useQuery({
     queryKey: ["repositories"],
     queryFn: listRepositories,
-    refetchInterval: 3500,
+    refetchInterval: (query) => (hasActiveRepositoryJob(query.state.data?.repositories) ? 3500 : false),
   });
 
   const activeRepoId = selectedRepoId ?? repositories.data?.repositories[0]?.repository_id ?? null;
