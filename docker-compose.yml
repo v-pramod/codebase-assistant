@@ -1,9 +1,16 @@
 services:
   api:
+    image: codebase-assistant-backend:local
     build:
       context: ./backend
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    env_file:
+      - ./backend/.env
     environment:
+      CODEBASE_ASSISTANT_DATA_DIR: /data/backend
+      CODEBASE_ASSISTANT_SQLITE_PATH: /data/backend/app.sqlite3
+      CODEBASE_ASSISTANT_CHROMA_DIR: /data/backend/chroma
+      CODEBASE_ASSISTANT_CLONES_DIR: /data/backend/clones
       CODEBASE_ASSISTANT_REDIS_URL: redis://redis:6379/0
     ports:
       - "8000:8000"
@@ -13,10 +20,17 @@ services:
       - redis
 
   worker:
+    image: codebase-assistant-backend:local
     build:
       context: ./backend
     command: python -m app.worker
+    env_file:
+      - ./backend/.env
     environment:
+      CODEBASE_ASSISTANT_DATA_DIR: /data/backend
+      CODEBASE_ASSISTANT_SQLITE_PATH: /data/backend/app.sqlite3
+      CODEBASE_ASSISTANT_CHROMA_DIR: /data/backend/chroma
+      CODEBASE_ASSISTANT_CLONES_DIR: /data/backend/clones
       CODEBASE_ASSISTANT_REDIS_URL: redis://redis:6379/0
     volumes:
       - backend-data:/data/backend
