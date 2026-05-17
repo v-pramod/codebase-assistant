@@ -3,10 +3,16 @@ from hashlib import sha256
 from pathlib import Path
 
 from app.chunking.chunker import CodeChunk, chunk_file
+from app.core.errors import AppError
 from app.indexing.embeddings import EmbeddingProvider
 from app.indexing.keyword_index import SQLiteKeywordIndex
 from app.indexing.vector_store import ChunkVectorStore, VectorRecord
-from app.ingestion.filtering import FileFilterLimits, RepositoryFile, filter_repository_files
+from app.ingestion.filtering import (
+    FileFilterLimits,
+    RepositoryFile,
+    filter_repository_files,
+    gitignore_spec_from_bytes,
+)
 from app.ingestion.refresh import RefreshPlan, read_file_at_commit
 
 
@@ -91,7 +97,11 @@ def stage_incremental_refresh(
         RepositoryFile(path, read_file_at_commit(repo_path, plan.latest_commit, path))
         for path in [*plan.added, *plan.changed]
     ]
-    report = filter_repository_files(candidates, limits)
+    gitignore_content = _read_optional_file_at_commit(repo_path, plan.latest_commit, ".gitignore")
+    gitignore_spec = (
+        gitignore_spec_from_bytes(gitignore_content) if gitignore_content is not None else None
+    )
+    report = filter_repository_files(candidates, limits, gitignore_spec)
     chunks: list[CodeChunk] = []
     content_by_path = {file.path: file.content for file in candidates}
     for decision in report.decisions:
@@ -109,3 +119,10 @@ def stage_incremental_refresh(
         options,
     )
     return report.skipped_counts
+
+
+def _read_optional_file_at_commit(repo_path: Path, commit: str, path: str) -> bytes | None:
+    try:
+        return read_file_at_commit(repo_path, commit, path)
+    except AppError:
+        return None

@@ -83,6 +83,7 @@ def test_incremental_refresh_stages_unchanged_and_reindexed_files_before_promoti
     tmp_path: Path,
 ) -> None:
     repo = _init_repo(tmp_path)
+    (repo / ".gitignore").write_text("ignored.py\n")
     (repo / "kept.py").write_text("def kept():\n    return 1\n")
     (repo / "changed.py").write_text("def changed():\n    return 1\n")
     _git(repo, "add", ".")
@@ -111,7 +112,9 @@ def test_incremental_refresh_stages_unchanged_and_reindexed_files_before_promoti
 
     (repo / "changed.py").write_text("def changed():\n    return 2\n")
     (repo / "added.py").write_text("def added():\n    return 3\n")
+    (repo / "ignored.py").write_text("def ignored():\n    return 4\n")
     _git(repo, "add", ".")
+    _git(repo, "add", "-f", "ignored.py")
     _git(repo, "commit", "-m", "refresh")
     latest = _git(repo, "rev-parse", "HEAD")
     plan = plan_incremental_refresh(repo, previous, latest)
@@ -128,7 +131,7 @@ def test_incremental_refresh_stages_unchanged_and_reindexed_files_before_promoti
         FileFilterLimits(max_file_bytes=1000),
     )
 
-    assert skipped == {}
+    assert skipped == {"gitignored": 1}
     pending_paths = {
         record.metadata["path"]
         for record in vector_store.active_records("repo-1", "snap-pending")

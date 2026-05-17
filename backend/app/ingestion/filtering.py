@@ -1,6 +1,9 @@
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import PurePosixPath
+from typing import Any
+
+import pathspec
 
 
 @dataclass(frozen=True)
@@ -43,12 +46,15 @@ GENERATED_SUFFIXES = (".lock", ".generated.py", ".pb.go")
 
 
 def filter_repository_files(
-    files: list[RepositoryFile], limits: FileFilterLimits
+    files: list[RepositoryFile],
+    limits: FileFilterLimits,
+    gitignore_spec: pathspec.PathSpec[Any] | None = None,
 ) -> FileFilterReport:
     if sum(file.size for file in files) > limits.max_repo_bytes:
         raise RepositoryLimitExceeded("Repository exceeds configured byte limit before embedding.")
 
-    decisions = [decide_file(file, limits) for file in files]
+    gitignore_spec = gitignore_spec or gitignore_spec_from_files(files)
+    decisions = [decide_file(file, limits, gitignore_spec) for file in files]
     indexed_count = sum(1 for decision in decisions if decision.indexable)
     if indexed_count > limits.max_indexed_files:
         raise RepositoryLimitExceeded(
@@ -59,10 +65,18 @@ def filter_repository_files(
     return FileFilterReport(decisions=decisions, skipped_counts=dict(skipped))
 
 
-def decide_file(file: RepositoryFile, limits: FileFilterLimits) -> FileDecision:
+def decide_file(
+    file: RepositoryFile,
+    limits: FileFilterLimits,
+    gitignore_spec: pathspec.PathSpec[Any] | None = None,
+) -> FileDecision:
     path = PurePosixPath(file.path)
     name = path.name
     parts = set(path.parts)
+    if any(part.startswith(".") for part in path.parts[:-1]):
+        return FileDecision(file.path, False, "hidden")
+    if gitignore_spec is not None and gitignore_spec.match_file(file.path):
+        return FileDecision(file.path, False, "gitignored")
     if _looks_binary(file.content):
         return FileDecision(file.path, False, "binary")
     if name in SECRET_NAMES or name.startswith(".env"):
@@ -86,3 +100,15 @@ def _looks_binary(content: bytes) -> bool:
     sample = content[:1024]
     textish = sum(1 for byte in sample if byte in b"\n\r\t" or 32 <= byte <= 126)
     return textish / len(sample) < 0.80
+
+
+def gitignore_spec_from_files(files: list[RepositoryFile]) -> pathspec.PathSpec[Any] | None:
+    for file in files:
+        if file.path == ".gitignore":
+            return gitignore_spec_from_bytes(file.content)
+    return None
+
+
+def gitignore_spec_from_bytes(content: bytes) -> pathspec.PathSpec[Any]:
+    text = content.decode("utf-8", errors="replace")
+    return pathspec.PathSpec.from_lines("gitignore", text.splitlines())
