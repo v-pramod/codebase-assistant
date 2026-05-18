@@ -15,7 +15,7 @@ import {
   Send,
   Sparkles,
 } from "lucide-react";
-import { FormEvent, ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, KeyboardEvent, ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Citation,
@@ -59,6 +59,7 @@ export default function App() {
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
   const autoSessionRepoIds = useRef(new Set<string>());
   const [prompt, setPrompt] = useState("");
+  const [pendingUserMessage, setPendingUserMessage] = useState<string | null>(null);
   const [stream, setStream] = useState<StreamState>(EMPTY_STREAM);
 
   const repositories = useQuery({
@@ -152,6 +153,7 @@ export default function App() {
 
   const activeCitations = stream.citations.length > 0 ? stream.citations : collectCitations(messages.data?.messages);
   const visibleEntries = fileTree.data?.entries.filter((entry) => entry.kind === "file").slice(0, 180) ?? [];
+  const isSending = stream.status === "retrieving" || stream.status === "streaming";
 
   function handleSubmitRepo(event: FormEvent) {
     event.preventDefault();
@@ -160,10 +162,11 @@ export default function App() {
 
   async function handleSend(event: FormEvent) {
     event.preventDefault();
-    if (!activeSessionId || !prompt.trim() || stream.status === "streaming") return;
+    if (!activeSessionId || !prompt.trim() || isSending) return;
 
     const outgoing = prompt.trim();
     setPrompt("");
+    setPendingUserMessage(outgoing);
     setStream({ ...EMPTY_STREAM, status: "retrieving" });
 
     try {
@@ -189,17 +192,44 @@ export default function App() {
           }));
         }
         if (event.event === "final") {
-          setStream(EMPTY_STREAM);
-          void queryClient.invalidateQueries({ queryKey: ["chat-messages", activeSessionId] });
-          void queryClient.invalidateQueries({ queryKey: ["chat-sessions", activeRepoId] });
+          const finalText = event.data.message?.content ?? event.data.content ?? "";
+          const finalCitations = event.data.message?.citations ?? event.data.citations ?? [];
+          if (finalText) {
+            setStream({
+              text: finalText,
+              citations: finalCitations,
+              status: "streaming",
+              error: null,
+            });
+          }
+          window.setTimeout(() => {
+            setPendingUserMessage(null);
+            setStream(EMPTY_STREAM);
+            void queryClient.invalidateQueries({ queryKey: ["chat-messages", activeSessionId] });
+            void queryClient.invalidateQueries({ queryKey: ["chat-sessions", activeRepoId] });
+          }, 900);
         }
         if (event.event === "error") {
+          setPendingUserMessage(null);
           setStream((current) => ({ ...current, status: "error", error: event.data.message }));
         }
       });
     } catch (error) {
+      setPendingUserMessage(null);
       setStream({ ...EMPTY_STREAM, status: "error", error: error instanceof Error ? error.message : "Stream failed." });
     }
+  }
+
+  function handlePromptKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key !== "Enter" || event.shiftKey) return;
+    event.preventDefault();
+    event.currentTarget.form?.requestSubmit();
+  }
+
+  function handlePromptKeyUp(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key !== "Enter" || event.shiftKey || isSending) return;
+    event.preventDefault();
+    event.currentTarget.form?.requestSubmit();
   }
 
   function openCitation(citation: Citation) {
@@ -268,7 +298,8 @@ export default function App() {
             {messages.data?.messages.map((message) => (
               <MessageBubble key={message.message_id} message={message} onCitation={openCitation} />
             ))}
-            {stream.text && <StreamingBubble stream={stream} onCitation={openCitation} />}
+            {pendingUserMessage && <PendingUserBubble content={pendingUserMessage} />}
+            {(stream.status === "streaming" || stream.text) && <StreamingBubble stream={stream} onCitation={openCitation} />}
             {stream.status === "retrieving" && <div className="thinking"><Loader2 className="spin" size={16} /> collecting repo-scoped evidence</div>}
             {stream.error && <div className="stream-error"><AlertTriangle size={16} /> {stream.error}</div>}
             {!activeSessionId && <EmptyState text="Index a repository, then start asking codebase questions." />}
@@ -277,10 +308,12 @@ export default function App() {
             <textarea
               value={prompt}
               onChange={(event) => setPrompt(event.target.value)}
+              onKeyDown={handlePromptKeyDown}
+              onKeyUp={handlePromptKeyUp}
               placeholder="Ask where auth is wired, how indexing works, or why a file is skipped..."
               aria-label="Chat prompt"
             />
-            <button disabled={!activeSessionId || !prompt.trim() || stream.status === "streaming"}>
+            <button disabled={!activeSessionId || !prompt.trim() || isSending}>
               <Send size={17} /> Send
             </button>
           </form>
@@ -341,8 +374,12 @@ function MessageBubble({ message, onCitation }: { message: ChatMessage; onCitati
   return <article className={`message ${message.role}`}><p>{message.content}</p><InlineCitations citations={message.citations} onCitation={onCitation} /></article>;
 }
 
+function PendingUserBubble({ content }: { content: string }) {
+  return <article className="message user pending"><p>{content}</p></article>;
+}
+
 function StreamingBubble({ stream, onCitation }: { stream: StreamState; onCitation: (citation: Citation) => void }) {
-  return <article className="message assistant streaming"><p>{stream.text}</p><InlineCitations citations={stream.citations} onCitation={onCitation} /></article>;
+  return <article className="message assistant streaming"><p>{stream.text}<span className="stream-caret" /></p><InlineCitations citations={stream.citations} onCitation={onCitation} /></article>;
 }
 
 function InlineCitations({ citations, onCitation }: { citations: Citation[]; onCitation: (citation: Citation) => void }) {

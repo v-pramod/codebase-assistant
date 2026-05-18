@@ -187,7 +187,10 @@ export async function streamChatMessage(
 
   while (true) {
     const { done, value } = await reader.read();
-    if (done) break;
+    if (done) {
+      buffer += decoder.decode();
+      break;
+    }
     buffer += decoder.decode(value, { stream: true });
     const chunks = buffer.split("\n\n");
     buffer = chunks.pop() ?? "";
@@ -196,14 +199,18 @@ export async function streamChatMessage(
       if (event) onEvent(event);
     }
   }
+  const finalEvent = parseSseChunk(buffer);
+  if (finalEvent) onEvent(finalEvent);
 }
 
 function parseSseChunk(chunk: string): StreamEvent | null {
   const eventLine = chunk.split("\n").find((line) => line.startsWith("event:"));
-  const dataLine = chunk.split("\n").find((line) => line.startsWith("data:"));
-  if (!eventLine || !dataLine) return null;
+  const dataLines = chunk.split("\n").filter((line) => line.startsWith("data:"));
+  if (!eventLine || dataLines.length === 0) return null;
 
   const event = eventLine.replace("event:", "").trim();
-  const data = JSON.parse(dataLine.replace("data:", "").trim()) as StreamEvent["data"];
+  const data = JSON.parse(
+    dataLines.map((line) => line.replace("data:", "").trim()).join("\n"),
+  ) as StreamEvent["data"];
   return { event, data } as StreamEvent;
 }

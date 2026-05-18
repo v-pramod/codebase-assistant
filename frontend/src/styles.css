@@ -130,6 +130,8 @@ small, .repo-tile small, .citation-list small { color: var(--muted); }
 .message.user { margin-left: auto; background: rgba(216, 168, 79, 0.12); border-bottom-right-radius: 6px; }
 .message.assistant { background: rgba(120, 214, 180, 0.08); border-bottom-left-radius: 6px; }
 .message.streaming { box-shadow: 0 0 0 1px rgba(120, 214, 180, 0.16), 0 24px 70px rgba(120, 214, 180, 0.08); }
+.message.pending { opacity: 0.78; }
+.stream-caret { display: inline-block; width: 0.55em; height: 1.05em; margin-left: 2px; border-radius: 999px; background: var(--oxide); vertical-align: -0.14em; animation: blink 900ms steps(2, start) infinite; }
 .inline-citations { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
 .inline-citations button { border: 1px solid rgba(120,214,180,0.38); color: var(--oxide); background: rgba(120,214,180,0.08); border-radius: 999px; padding: 6px 9px; font-family: "JetBrains Mono", monospace; font-size: 0.72rem; }
 .inline-citations button.stale { border-color: rgba(224,106,63,0.55); color: var(--rust); background: rgba(224,106,63,0.1); }
@@ -159,6 +161,7 @@ small, .repo-tile small, .citation-list small { color: var(--muted); }
 @keyframes reveal { from { opacity: 0; transform: translateY(18px) scale(0.99); } to { opacity: 1; transform: translateY(0) scale(1); } }
 @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes spin { to { transform: rotate(360deg); } }
+@keyframes blink { 50% { opacity: 0; } }
 
 @media (max-width: 1180px) {
   .workspace-grid { grid-template-columns: 280px 1fr; }
