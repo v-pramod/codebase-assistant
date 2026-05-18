@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     sqlite_path: Path = Field(default=Path("../data/backend/app.sqlite3"))
     chroma_dir: Path = Field(default=Path("../data/backend/chroma"))
     clones_dir: Path = Field(default=Path("../data/backend/clones"))
-    redis_url: str = "redis://redis:6379/0"
+    redis_url: str = "redis://localhost:6379/0"
     max_file_bytes: int = 250_000
     max_repo_bytes: int = 200_000_000
     max_indexed_files: int = 20_000

@@ -39,15 +39,24 @@ def test_github_url_validation_rejects_unsafe_inputs(url: str) -> None:
         validate_github_repo_url(url)
 
 
-def test_repository_submission_exposes_pollable_job_status() -> None:
+def test_repository_submission_enqueues_pollable_job_status(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    enqueued: list[str] = []
+    monkeypatch.setattr(
+        routes,
+        "enqueue_repository_ingestion",
+        lambda repository, _settings: enqueued.append(repository.repo_id),
+    )
     client = TestClient(create_app())
 
     submitted = client.post("/api/repositories", json={"url": "https://github.com/encode/httpx"})
 
     assert submitted.status_code == 202
     body = submitted.json()
-    assert body["status"] == "failed"
-    assert body["phase"] == "ingestion_failed"
+    assert body["status"] == "queued"
+    assert body["phase"] == "queued"
+    assert enqueued == [body["repository_id"]]
 
     polled = client.get(f"/api/ingestion-jobs/{body['job_id']}")
     assert polled.status_code == 200

@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from pathlib import Path
 from uuid import uuid4
 
@@ -18,13 +19,16 @@ def ingest_repository_now(
     embedding_provider: EmbeddingProvider,
     vector_store: ChunkVectorStore,
     keyword_index: SQLiteKeywordIndex,
+    on_update: Callable[[TrackedRepository], None] | None = None,
 ) -> None:
     job = repository.job
     job.status = "running"
     job.phase = "cloning"
+    _publish(repository, on_update)
     commit = clone_or_fetch_repository(repository.url, repository.local_path)
 
     job.phase = "filtering_files"
+    _publish(repository, on_update)
     files = [
         _repository_file(repository.local_path, path)
         for path in list_repository_files_at_head(repository.local_path)
@@ -38,6 +42,7 @@ def ingest_repository_now(
     job.skipped = report.skipped_counts
 
     job.phase = "chunking"
+    _publish(repository, on_update)
     content_by_path = {file.path: file.content for file in files}
     snapshot_id = str(uuid4())
     chunks = []
@@ -52,6 +57,7 @@ def ingest_repository_now(
         chunks.extend(chunk_file(repository.repo_id, snapshot_id, decision.path, content, options))
 
     job.phase = "embedding"
+    _publish(repository, on_update)
     index_chunks(
         repository.repo_id, snapshot_id, chunks, embedding_provider, vector_store, keyword_index
     )
@@ -59,8 +65,16 @@ def ingest_repository_now(
     repository.active_commit = commit
     job.status = "succeeded"
     job.phase = "indexed"
+    _publish(repository, on_update)
 
 
 def _repository_file(repo_path: Path, relative_path: str) -> RepositoryFile:
     path = repo_path / relative_path
     return RepositoryFile(relative_path, path.read_bytes())
+
+
+def _publish(
+    repository: TrackedRepository, on_update: Callable[[TrackedRepository], None] | None
+) -> None:
+    if on_update is not None:
+        on_update(repository)

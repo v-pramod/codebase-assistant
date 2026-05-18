@@ -2,7 +2,7 @@
 name = "codebase-assistant-backend"
 version = "0.1.0"
 description = "Local backend for public GitHub codebase RAG ingestion and chat."
-requires-python = ">=3.12"
+requires-python = ">=3.12,<3.13"
 dependencies = [
     "alembic>=1.13.0",
     "chromadb>=0.5.23",

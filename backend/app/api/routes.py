@@ -1,6 +1,5 @@
 import json
 from collections.abc import Iterator
-from pathlib import Path
 from uuid import uuid4
 
 from fastapi import APIRouter
@@ -19,10 +18,11 @@ from app.ingestion.github import validate_github_repo_url
 from app.ingestion.refresh import latest_default_branch_commit, plan_incremental_refresh
 from app.jobs.ingestion import IngestionJobState, InMemoryRepositoryRegistry, TrackedRepository
 from app.jobs.initial_ingestion import ingest_repository_now
+from app.jobs.queue import enqueue_repository_ingestion, sync_repository_from_queue
 
 router = APIRouter()
-_registry = InMemoryRepositoryRegistry(Path("../data/backend/clones"))
-_chat_store = SQLiteChatStore(Path("../data/backend/chat.sqlite3"))
+_registry = InMemoryRepositoryRegistry(get_settings().clones_dir)
+_chat_store = SQLiteChatStore(get_settings().data_dir / "chat.sqlite3")
 _stream_dependencies_override: StreamDependencies | None = None
 
 
@@ -50,23 +50,31 @@ def diagnostics() -> dict[str, str | int]:
 
 
 @router.post("/repositories", status_code=202)
-def submit_repository(payload: RepositorySubmission) -> dict[str, str]:
+async def submit_repository(payload: RepositorySubmission) -> dict[str, str]:
     repo_url = validate_github_repo_url(payload.url)
     repository = _registry.submit(repo_url)
     if repository.active_snapshot_id is None and repository.job.status == "queued":
-        try:
-            dependencies = _stream_dependencies()
-            ingest_repository_now(
-                repository,
-                get_settings(),
-                dependencies.embedding_provider,
-                dependencies.vector_store,
-                dependencies.keyword_index,
-            )
-        except Exception as exc:
-            repository.job.status = "failed"
-            repository.job.phase = "ingestion_failed"
-            repository.job.error = _safe_error_message(exc)
+        if _stream_dependencies_override is not None:
+            try:
+                dependencies = _stream_dependencies()
+                ingest_repository_now(
+                    repository,
+                    get_settings(),
+                    dependencies.embedding_provider,
+                    dependencies.vector_store,
+                    dependencies.keyword_index,
+                )
+            except Exception as exc:
+                repository.job.status = "failed"
+                repository.job.phase = "ingestion_failed"
+                repository.job.error = _safe_error_message(exc)
+        else:
+            try:
+                enqueue_repository_ingestion(repository, get_settings())
+            except Exception as exc:
+                repository.job.status = "failed"
+                repository.job.phase = "ingestion_failed"
+                repository.job.error = _safe_error_message(exc)
     return {
         "repository_id": repository.repo_id,
         "url": repository.url,
@@ -78,7 +86,10 @@ def submit_repository(payload: RepositorySubmission) -> dict[str, str]:
 
 @router.get("/repositories")
 def list_repositories() -> dict[str, list[dict[str, object]]]:
-    return {"repositories": [_repository_payload(repo) for repo in _registry.list_repositories()]}
+    repositories = _registry.list_repositories()
+    for repository in repositories:
+        _sync_repository_from_queue(repository)
+    return {"repositories": [_repository_payload(repo) for repo in repositories]}
 
 
 @router.get("/repositories/{repository_id}")
@@ -86,11 +97,12 @@ def get_repository(repository_id: str) -> dict[str, object]:
     repository = _registry.get_repository(repository_id)
     if repository is None:
         raise AppError("repository_not_found", "Repository was not found.", 404)
+    _sync_repository_from_queue(repository)
     return _repository_payload(repository)
 
 
 @router.post("/repositories/{repository_id}/refresh", status_code=202)
-def refresh_repository(repository_id: str) -> dict[str, object]:
+async def refresh_repository(repository_id: str) -> dict[str, object]:
     repository = _require_repository(repository_id)
     job = _registry.start_refresh(repository)
     try:
@@ -150,6 +162,7 @@ def refresh_repository(repository_id: str) -> dict[str, object]:
 
 @router.get("/ingestion-jobs/{job_id}")
 def get_ingestion_job(job_id: str) -> dict[str, object]:
+    _sync_repository_for_job(job_id)
     job = _registry.get_job(job_id)
     if job is None:
         raise AppError("job_not_found", "Ingestion job was not found.", status_code=404)
@@ -342,6 +355,7 @@ def _require_repository(repository_id: str) -> TrackedRepository:
     repository = _registry.get_repository(repository_id)
     if repository is None:
         raise AppError("repository_not_found", "Repository was not found.", 404)
+    _sync_repository_from_queue(repository)
     return repository
 
 
@@ -363,6 +377,17 @@ def _stream_dependencies() -> StreamDependencies:
 def set_stream_dependencies_for_tests(dependencies: StreamDependencies | None) -> None:
     global _stream_dependencies_override
     _stream_dependencies_override = dependencies
+
+
+def _sync_repository_for_job(job_id: str) -> None:
+    for repository in _registry.list_repositories():
+        if repository.job.job_id == job_id:
+            _sync_repository_from_queue(repository)
+            return
+
+
+def _sync_repository_from_queue(repository: TrackedRepository) -> None:
+    sync_repository_from_queue(repository, get_settings())
 
 
 def _safe_error_message(exc: Exception) -> str:
