@@ -23,7 +23,7 @@ services:
     image: codebase-assistant-backend:local
     build:
       context: ./backend
-    command: python -m app.worker
+    command: codebase-assistant-worker
     env_file:
       - ./backend/.env
     environment:

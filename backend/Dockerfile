@@ -11,7 +11,8 @@ RUN python -m venv /opt/venv && \
     pip install --no-cache-dir uv
 
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev --no-install-project --active && \
+COPY app ./app
+RUN uv sync --frozen --no-dev --active && \
     find /opt/venv -type d -name "__pycache__" -prune -exec rm -rf {} + && \
     find /opt/venv -type f -name "*.pyc" -delete && \
     rm -rf /opt/venv/lib/python*/site-packages/pip*
