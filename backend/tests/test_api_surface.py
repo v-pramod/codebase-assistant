@@ -115,6 +115,11 @@ def test_chat_stream_endpoint_uses_runtime_dependencies_for_sse(tmp_path: Path) 
 
 def test_file_browser_lists_skipped_files_and_blocks_unsafe_previews(tmp_path: Path) -> None:
     (tmp_path / "src").mkdir()
+    (tmp_path / ".git").mkdir()
+    (tmp_path / ".git" / "HEAD").write_text("ref: refs/heads/main\n")
+    (tmp_path / "target").mkdir()
+    (tmp_path / "target" / "compiled.class").write_bytes(b"\x00\x01")
+    (tmp_path / ".gitignore").write_text("target/\n")
     (tmp_path / "src" / "app.py").write_text("def target():\n    return 1\n")
     (tmp_path / ".env").write_text("SECRET=value\n")
     (tmp_path / "image.bin").write_bytes(b"\x00\x01\x02")
@@ -125,6 +130,10 @@ def test_file_browser_lists_skipped_files_and_blocks_unsafe_previews(tmp_path: P
     assert by_path["src/app.py"].indexable is True
     assert by_path[".env"].skipped_reason == "secret"
     assert by_path["image.bin"].skipped_reason == "binary"
+    assert ".git" not in by_path
+    assert ".git/HEAD" not in by_path
+    assert "target" not in by_path
+    assert "target/compiled.class" not in by_path
 
     preview = read_file_preview(tmp_path, "src/app.py", FileFilterLimits(max_file_bytes=100))
     assert preview.previewable is True
@@ -133,6 +142,12 @@ def test_file_browser_lists_skipped_files_and_blocks_unsafe_previews(tmp_path: P
     blocked = read_file_preview(tmp_path, ".env", FileFilterLimits(max_file_bytes=100))
     assert blocked.previewable is False
     assert blocked.reason == "secret"
+
+    ignored = read_file_preview(
+        tmp_path, "target/compiled.class", FileFilterLimits(max_file_bytes=100)
+    )
+    assert ignored.previewable is False
+    assert ignored.reason == "gitignored"
 
     with pytest.raises(AppError):
         read_file_preview(tmp_path, "../outside.py", FileFilterLimits(max_file_bytes=100))

@@ -7,7 +7,11 @@ from app.chunking.chunker import chunk_file
 from app.indexing.embeddings import EmbeddingProviderError
 from app.indexing.indexer import IndexingOptions, index_chunks
 from app.indexing.keyword_index import SQLiteKeywordIndex
-from app.indexing.vector_store import InMemoryChunkVectorStore, VectorStoreError
+from app.indexing.vector_store import (
+    ChromaChunkVectorStore,
+    InMemoryChunkVectorStore,
+    VectorStoreError,
+)
 
 
 @dataclass
@@ -111,3 +115,23 @@ def test_vector_store_rejects_model_or_dimension_mixing(tmp_path: Path) -> None:
             vector_store,
             SQLiteKeywordIndex(tmp_path / "second.sqlite3"),
         )
+
+
+def test_chroma_indexing_accepts_chunks_without_symbol_metadata(tmp_path: Path) -> None:
+    chunks = chunk_file("repo-1", "snap-1", "pom.xml", "<project>\n</project>\n")
+    assert chunks[0].symbol_name is None
+    vector_store = ChromaChunkVectorStore(str(tmp_path / "chroma"))
+    keyword_index = SQLiteKeywordIndex(tmp_path / "index.sqlite3")
+
+    index_chunks(
+        "repo-1",
+        "snap-1",
+        chunks,
+        RecordingEmbeddingProvider(),
+        vector_store,
+        keyword_index,
+    )
+
+    records = vector_store.active_records("repo-1", "snap-1")
+    assert [record.metadata["path"] for record in records] == ["pom.xml"]
+    assert "symbol_name" not in records[0].metadata

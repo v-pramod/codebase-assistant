@@ -3,6 +3,8 @@ from hashlib import sha256
 from importlib import import_module
 from typing import Any, Protocol
 
+type MetadataValue = str | int | float | bool
+
 
 class VectorStoreError(Exception):
     pass
@@ -105,7 +107,7 @@ class ChromaChunkVectorStore:
             return
         metadatas = []
         for record in records:
-            metadata = dict(record.metadata)
+            metadata = _chroma_metadata(record.metadata)
             metadata["embedding_model"] = embedding_model
             metadata["embedding_dimension"] = len(record.embedding)
             metadatas.append(metadata)
@@ -176,3 +178,7 @@ class ChromaChunkVectorStore:
 
 def _copied_chunk_id(source_chunk_id: str, target_snapshot_id: str) -> str:
     return sha256(f"{source_chunk_id}|{target_snapshot_id}".encode()).hexdigest()
+
+
+def _chroma_metadata(metadata: dict[str, str | int | bool | None]) -> dict[str, MetadataValue]:
+    return {key: value for key, value in metadata.items() if value is not None}
