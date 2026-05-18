@@ -67,6 +67,10 @@ def apply_repository_state(repository: TrackedRepository, state: dict[str, Any])
         return
     repository.job.status = str(state.get("status") or repository.job.status)
     repository.job.phase = str(state.get("phase") or repository.job.phase)
+    repository.job.progress_current = int(
+        state.get("progress_current") or repository.job.progress_current
+    )
+    repository.job.progress_total = int(state.get("progress_total") or repository.job.progress_total)
     error = state.get("error")
     repository.job.error = str(error) if error is not None else None
     warnings = state.get("warnings")
@@ -94,6 +98,8 @@ def _repository_state(repository: TrackedRepository) -> dict[str, Any]:
         "repository_id": repository.repo_id,
         "status": repository.job.status,
         "phase": repository.job.phase,
+        "progress_current": repository.job.progress_current,
+        "progress_total": repository.job.progress_total,
         "error": repository.job.error,
         "warnings": repository.job.warnings,
         "skipped": repository.job.skipped,

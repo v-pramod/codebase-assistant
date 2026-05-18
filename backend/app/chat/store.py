@@ -75,6 +75,18 @@ class SQLiteChatStore:
             return None
         return ChatSessionRecord(str(row[0]), str(row[1]), str(row[2]), str(row[3]))
 
+    def update_session_title(self, session_id: str, title: str) -> ChatSessionRecord | None:
+        with sqlite3.connect(self.db_path) as connection:
+            connection.execute(
+                """
+                UPDATE chat_sessions
+                SET title = ?
+                WHERE session_id = ?
+                """,
+                (title, session_id),
+            )
+        return self.get_session(session_id)
+
     def add_message(
         self,
         session_id: str,

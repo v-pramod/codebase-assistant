@@ -5,6 +5,8 @@ export type Repository = {
   name: string;
   status: string;
   phase: string;
+  progress_current?: number;
+  progress_total?: number;
   warnings: string[];
   skipped: Record<string, number>;
   active_snapshot_id: string | null;
@@ -16,6 +18,8 @@ export type IngestionJob = {
   repository_id: string;
   status: string;
   phase: string;
+  progress_current?: number;
+  progress_total?: number;
   error: string | null;
   warnings: string[];
   skipped: Record<string, number>;

@@ -116,6 +116,9 @@ small, .repo-tile small, .citation-list small { color: var(--muted); }
 
 .status-card { border: 1px dashed rgba(216, 168, 79, 0.42); background: rgba(216, 168, 79, 0.065); border-radius: 22px; padding: 14px; display: grid; gap: 8px; }
 .status-card div, .warning, .thinking, .stream-error, .file-row em, .empty-state { display: flex; align-items: center; gap: 8px; }
+.progress-wrap { display: grid !important; grid-template-columns: 1fr auto; gap: 10px; align-items: center; }
+.progress-track { display: block; height: 8px; overflow: hidden; border-radius: 999px; background: rgba(245,234,214,0.1); border: 1px solid rgba(245,234,214,0.12); }
+.progress-track span { display: block; height: 100%; min-width: 8px; border-radius: inherit; background: linear-gradient(90deg, var(--oxide), var(--brass)); transition: width 420ms ease; }
 .warning, .stream-error { color: var(--red); }
 .sessions-head { display: flex; align-items: center; justify-content: space-between; }
 .ghost-button { padding: 8px 12px; background: rgba(245,234,214,0.1); color: var(--ink); box-shadow: none; border: 1px solid var(--line); }

@@ -171,6 +171,8 @@ def get_ingestion_job(job_id: str) -> dict[str, object]:
         "repository_id": job.repo_id,
         "status": job.status,
         "phase": job.phase,
+        "progress_current": job.progress_current,
+        "progress_total": job.progress_total,
         "error": job.error,
         "warnings": job.warnings,
         "skipped": job.skipped,
@@ -181,6 +183,18 @@ def get_ingestion_job(job_id: str) -> dict[str, object]:
 def create_chat_session(repository_id: str, payload: ChatSessionSubmission) -> dict[str, str]:
     _require_repository(repository_id)
     session = _chat_store.create_session(repository_id, payload.title)
+    return {
+        "session_id": session.session_id,
+        "repository_id": session.repo_id,
+        "title": session.title,
+    }
+
+
+@router.patch("/chat-sessions/{session_id}")
+def update_chat_session(session_id: str, payload: ChatSessionSubmission) -> dict[str, str]:
+    session = _chat_store.update_session_title(session_id, payload.title)
+    if session is None:
+        raise AppError("chat_session_not_found", "Chat session was not found.", 404)
     return {
         "session_id": session.session_id,
         "repository_id": session.repo_id,
@@ -231,6 +245,12 @@ def stream_chat_message(session_id: str, payload: ChatMessageSubmission) -> Stre
                     409,
                 )
             dependencies = _stream_dependencies()
+            if not _chat_store.list_messages(session_id):
+                generated_title = _summarize_question_as_title(
+                    dependencies.chat_provider, payload.content
+                )
+                if generated_title:
+                    _chat_store.update_session_title(session_id, generated_title)
             for event in stream_chat_answer(
                 _chat_store,
                 session_id,
@@ -301,6 +321,8 @@ def _repository_payload(repo: TrackedRepository) -> dict[str, object]:
         "name": repo.name,
         "status": repo.job.status,
         "phase": repo.job.phase,
+        "progress_current": repo.job.progress_current,
+        "progress_total": repo.job.progress_total,
         "warnings": repo.job.warnings,
         "skipped": repo.job.skipped,
         "active_snapshot_id": repo.active_snapshot_id,
@@ -314,10 +336,42 @@ def _refresh_payload(job: IngestionJobState, full_rebuild_available: bool) -> di
         "repository_id": job.repo_id,
         "status": job.status,
         "phase": job.phase,
+        "progress_current": job.progress_current,
+        "progress_total": job.progress_total,
         "warnings": job.warnings,
         "skipped": job.skipped,
         "full_rebuild_available": full_rebuild_available,
     }
+
+
+def _summarize_question_as_title(chat_provider: object, question: str) -> str | None:
+    answer = getattr(chat_provider, "answer", None)
+    if not callable(answer):
+        return _fallback_title(question)
+    prompt = (
+        "Summarize this user question as a concise chat title.\n"
+        "Return only the title, 3 to 7 words, no quotes, no trailing punctuation.\n"
+        f"Question: {question}"
+    )
+    try:
+        raw = str(answer(prompt, []))
+    except Exception:
+        return _fallback_title(question)
+    return _clean_title(raw) or _fallback_title(question)
+
+
+def _fallback_title(question: str) -> str:
+    words = question.strip().replace("\n", " ").split()
+    return _clean_title(" ".join(words[:7])) or "Codebase Question"
+
+
+def _clean_title(raw: str) -> str:
+    title = raw.strip().strip("\"'`").strip()
+    title = title.rstrip(".!?")
+    words = title.split()
+    if len(words) > 7:
+        title = " ".join(words[:7])
+    return title[:80]
 
 
 def _message_payload(

@@ -15,7 +15,7 @@ import {
   Send,
   Sparkles,
 } from "lucide-react";
-import { FormEvent, ReactNode, useMemo, useState } from "react";
+import { FormEvent, ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Citation,
@@ -57,6 +57,7 @@ export default function App() {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [selectedCitation, setSelectedCitation] = useState<Citation | null>(null);
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
+  const autoSessionRepoIds = useRef(new Set<string>());
   const [prompt, setPrompt] = useState("");
   const [stream, setStream] = useState<StreamState>(EMPTY_STREAM);
 
@@ -129,12 +130,25 @@ export default function App() {
   });
 
   const createSession = useMutation({
-    mutationFn: () => createChatSession(activeRepoId!, `Investigation ${new Date().toLocaleTimeString()}`),
+    mutationFn: (title: string = "New chat") => createChatSession(activeRepoId!, title),
     onSuccess: (session) => {
       setSelectedSessionId(session.session_id);
       void queryClient.invalidateQueries({ queryKey: ["chat-sessions", activeRepoId] });
     },
   });
+
+  useEffect(() => {
+    if (!activeRepoId || !selectedRepo?.active_snapshot_id || sessions.isLoading || createSession.isPending) return;
+    if ((sessions.data?.sessions.length ?? 0) > 0 || autoSessionRepoIds.current.has(activeRepoId)) return;
+    autoSessionRepoIds.current.add(activeRepoId);
+    createSession.mutate("New chat");
+  }, [
+    activeRepoId,
+    createSession,
+    selectedRepo?.active_snapshot_id,
+    sessions.data?.sessions.length,
+    sessions.isLoading,
+  ]);
 
   const activeCitations = stream.citations.length > 0 ? stream.citations : collectCitations(messages.data?.messages);
   const visibleEntries = fileTree.data?.entries.filter((entry) => entry.kind === "file").slice(0, 180) ?? [];
@@ -175,13 +189,9 @@ export default function App() {
           }));
         }
         if (event.event === "final") {
-          setStream({
-            text: event.data.message?.content ?? event.data.content ?? "",
-            citations: event.data.message?.citations ?? event.data.citations ?? [],
-            status: "idle",
-            error: null,
-          });
+          setStream(EMPTY_STREAM);
           void queryClient.invalidateQueries({ queryKey: ["chat-messages", activeSessionId] });
+          void queryClient.invalidateQueries({ queryKey: ["chat-sessions", activeRepoId] });
         }
         if (event.event === "error") {
           setStream((current) => ({ ...current, status: "error", error: event.data.message }));
@@ -247,7 +257,7 @@ export default function App() {
 
           <div className="sessions-head">
             <PanelTitle icon={<MessageSquarePlus size={17} />} title="Sessions" />
-            <button className="ghost-button" disabled={!activeRepoId} onClick={() => createSession.mutate()}>New</button>
+            <button className="ghost-button" disabled={!activeRepoId} onClick={() => createSession.mutate("New chat")}>New</button>
           </div>
           <SessionList sessions={sessions.data?.sessions ?? []} selected={activeSessionId} onSelect={setSelectedSessionId} />
         </aside>
@@ -261,7 +271,7 @@ export default function App() {
             {stream.text && <StreamingBubble stream={stream} onCitation={openCitation} />}
             {stream.status === "retrieving" && <div className="thinking"><Loader2 className="spin" size={16} /> collecting repo-scoped evidence</div>}
             {stream.error && <div className="stream-error"><AlertTriangle size={16} /> {stream.error}</div>}
-            {!activeSessionId && <EmptyState text="Create or select a session to ask codebase questions." />}
+            {!activeSessionId && <EmptyState text="Index a repository, then start asking codebase questions." />}
           </div>
           <form className="prompt-form" onSubmit={handleSend}>
             <textarea
@@ -298,14 +308,23 @@ function PanelTitle({ icon, title }: { icon: ReactNode; title: string }) {
   return <h2 className="panel-title">{icon}{title}</h2>;
 }
 
-function StatusCard({ repo, job }: { repo: { status: string; phase: string; warnings: string[]; skipped: Record<string, number>; active_snapshot_id: string | null } | null; job: { status: string; phase: string; error: string | null; warnings: string[]; skipped: Record<string, number> } | null }) {
+function StatusCard({ repo, job }: { repo: { status: string; phase: string; progress_current?: number; progress_total?: number; warnings: string[]; skipped: Record<string, number>; active_snapshot_id: string | null } | null; job: { status: string; phase: string; progress_current?: number; progress_total?: number; error: string | null; warnings: string[]; skipped: Record<string, number> } | null }) {
   const target = job ?? repo;
   if (!target) return null;
   const skipped = Object.entries(target.skipped ?? {});
+  const fallbackProgress = target.status === "succeeded" ? 100 : 0;
+  const progress =
+    typeof target.progress_current === "number" && typeof target.progress_total === "number"
+      ? Math.round((target.progress_current / Math.max(target.progress_total, 1)) * 100)
+      : fallbackProgress;
   return (
     <div className="status-card">
       <div><CircleDot size={14} /> {target.phase}</div>
       <strong>{target.status}</strong>
+      <div className="progress-wrap" aria-label={`Indexing progress ${progress}%`}>
+        <span className="progress-track"><span style={{ width: `${progress}%` }} /></span>
+        <small>{progress}%</small>
+      </div>
       {"active_snapshot_id" in target && target.active_snapshot_id && <small>Snapshot {target.active_snapshot_id}</small>}
       {target.warnings?.map((warning) => <p key={warning} className="warning"><AlertTriangle size={14} /> {warning}</p>)}
       {"error" in target && target.error && <p className="warning"><AlertTriangle size={14} /> {target.error}</p>}

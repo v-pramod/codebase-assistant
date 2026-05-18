@@ -11,6 +11,8 @@ class IngestionJobState:
     repo_id: str
     status: str = "queued"
     phase: str = "queued"
+    progress_current: int = 0
+    progress_total: int = 5
     error: str | None = None
     warnings: list[str] = field(default_factory=list)
     skipped: dict[str, int] = field(default_factory=dict)
