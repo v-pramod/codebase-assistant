@@ -101,7 +101,7 @@ def test_chat_stream_endpoint_uses_runtime_dependencies_for_sse(tmp_path: Path) 
     try:
         response = client.post(
             f"/api/chat-sessions/{created.json()['session_id']}/messages/stream",
-            json={"content": "target"},
+            json={"content": "what is target?"},
         )
     finally:
         routes.set_stream_dependencies_for_tests(None)

@@ -56,6 +56,23 @@ def test_indexing_stores_vectors_and_keyword_text_for_active_snapshot(tmp_path: 
     assert [(hit.path, hit.start_line, hit.end_line) for hit in hits] == [("app.py", 1, 2)]
 
 
+def test_keyword_search_accepts_natural_language_questions(tmp_path: Path) -> None:
+    chunks = chunk_file(
+        "repo-1",
+        "snap-1",
+        "pom.xml",
+        "<!-- java version 17 -->\n<maven.compiler.source>17</maven.compiler.source>\n",
+    )
+    keyword_index = SQLiteKeywordIndex(tmp_path / "index.sqlite3")
+    keyword_index.add_chunks("repo-1", "snap-1", chunks)
+
+    hits = keyword_index.search_active(
+        "repo-1", "snap-1", "what is the java version used in this project?"
+    )
+
+    assert [hit.path for hit in hits] == ["pom.xml"]
+
+
 def test_keyword_and_vector_queries_are_filtered_to_active_snapshot(tmp_path: Path) -> None:
     active = chunk_file("repo-1", "snap-active", "active.py", "def needle():\n    pass\n")
     stale = chunk_file("repo-1", "snap-stale", "stale.py", "def needle():\n    pass\n")

@@ -1,3 +1,4 @@
+import re
 import sqlite3
 from dataclasses import dataclass
 from hashlib import sha256
@@ -44,6 +45,9 @@ class SQLiteKeywordIndex:
             )
 
     def search_active(self, repo_id: str, snapshot_id: str, query: str) -> list[KeywordHit]:
+        fts_query = _safe_fts_query(query)
+        if not fts_query:
+            return []
         with sqlite3.connect(self.db_path) as connection:
             rows = connection.execute(
                 """
@@ -52,7 +56,7 @@ class SQLiteKeywordIndex:
                 WHERE chunk_keyword_index MATCH ? AND repo_id = ? AND snapshot_id = ? AND active = 1
                 ORDER BY rank
                 """,
-                (query, repo_id, snapshot_id),
+                (fts_query, repo_id, snapshot_id),
             ).fetchall()
         return [
             KeywordHit(
@@ -145,3 +149,47 @@ class SQLiteKeywordIndex:
 
 def _copied_chunk_id(source_chunk_id: str, target_snapshot_id: str) -> str:
     return sha256(f"{source_chunk_id}|{target_snapshot_id}".encode()).hexdigest()
+
+
+_FTS_TOKEN_RE = re.compile(r"[A-Za-z0-9_]+")
+_FTS_STOP_WORDS = {
+    "a",
+    "an",
+    "and",
+    "are",
+    "as",
+    "at",
+    "be",
+    "by",
+    "for",
+    "from",
+    "how",
+    "in",
+    "is",
+    "it",
+    "of",
+    "on",
+    "or",
+    "the",
+    "this",
+    "to",
+    "used",
+    "what",
+    "where",
+    "which",
+    "who",
+    "why",
+    "with",
+}
+
+
+def _safe_fts_query(query: str) -> str:
+    tokens = []
+    seen = set()
+    for match in _FTS_TOKEN_RE.finditer(query):
+        token = match.group(0).lower()
+        if token in _FTS_STOP_WORDS or token in seen:
+            continue
+        seen.add(token)
+        tokens.append(token)
+    return " OR ".join(f'"{token}"' for token in tokens)
