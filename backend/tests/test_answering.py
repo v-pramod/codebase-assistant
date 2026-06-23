@@ -104,3 +104,35 @@ def test_weak_evidence_refuses_without_guessing(tmp_path: Path) -> None:
     assert result.refused is True
     assert result.answer.startswith("I do not have enough indexed evidence")
     assert result.citations[0].path == "other.py"
+
+
+@dataclass
+class OrthogonalEmbeddingProvider:
+    model: str = "test-embedding"
+
+    def embed_texts(self, texts: list[str]) -> list[list[float]]:
+        # The query embeds one way; any document embeds orthogonally, so cosine
+        # similarity is ~0 even when the document contains the query token.
+        return [[1.0, 0.0] if text == "config" else [0.0, 1.0] for text in texts]
+
+
+def test_keyword_match_without_semantic_support_still_refuses(tmp_path: Path) -> None:
+    vector_store = InMemoryChunkVectorStore()
+    keyword_index = SQLiteKeywordIndex(tmp_path / "index.sqlite3")
+    embedding_provider = OrthogonalEmbeddingProvider()
+    # Document literally contains "config" (so FTS matches) but embeds orthogonally.
+    chunks = chunk_file("repo-1", "snap-1", "settings.py", "def load():\n    return config\n")
+    index_chunks("repo-1", "snap-1", chunks, embedding_provider, vector_store, keyword_index)
+
+    result = answer_question(
+        "repo-1",
+        "snap-1",
+        "config",
+        [],
+        embedding_provider,
+        vector_store,
+        keyword_index,
+        CitedChatProvider(),
+    )
+
+    assert result.refused is True

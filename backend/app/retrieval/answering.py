@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from math import sqrt
 from typing import Protocol
 
@@ -51,6 +51,7 @@ class AnsweringOptions:
     max_evidence: int = 4
     min_evidence_score: float = 0.20
     max_recent_messages: int = 4
+    keyword_boost: float = 0.1
 
 
 class ChatProvider(Protocol):
@@ -80,6 +81,7 @@ def answer_question(
         vector_store,
         keyword_index,
         options.max_evidence,
+        keyword_boost=options.keyword_boost,
     )
     citations = [
         Citation(item.path, item.start_line, item.end_line, item.text) for item in evidence
@@ -107,6 +109,7 @@ def retrieve_evidence(
     vector_store: ChunkVectorStore,
     keyword_index: SQLiteKeywordIndex,
     limit: int,
+    keyword_boost: float = 0.1,
 ) -> list[Evidence]:
     query_embedding = embedding_provider.embed_texts([question])[0]
     merged: dict[str, Evidence] = {}
@@ -117,15 +120,18 @@ def retrieve_evidence(
         merged[evidence.chunk_id] = evidence
     for hit in keyword_index.search_active(repo_id, snapshot_id, question):
         existing = merged.get(hit.chunk_id)
-        keyword_score = 1.0
-        if existing is None or keyword_score > existing.score:
+        if existing is not None:
+            merged[hit.chunk_id] = replace(
+                existing, score=min(1.0, existing.score + keyword_boost)
+            )
+        else:
             merged[hit.chunk_id] = Evidence(
                 hit.chunk_id,
                 hit.path,
                 hit.start_line,
                 hit.end_line,
                 hit.text,
-                keyword_score,
+                keyword_boost,
             )
     return sorted(merged.values(), key=lambda item: item.score, reverse=True)[:limit]
 
