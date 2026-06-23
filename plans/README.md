@@ -24,7 +24,7 @@ row when done.
 |------|-------|----------|--------|------------|--------|
 | 001  | Remove the no-op `X-OpenRouter-Cache` header | P1 | S | — | DONE |
 | 002  | Persist chat turns only after answering succeeds | P1 | S | — | DONE |
-| 003  | Fix keyword-hit scoring so refusal & ranking work | P1 | M | — | TODO |
+| 003  | Fix keyword-hit scoring so refusal & ranking work | P1 | M | — | DONE |
 | 004  | Push vector search into the store (ANN, no full scan) | P2 | M | 003 | TODO |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (one-line reason) | REJECTED (one-line rationale)
