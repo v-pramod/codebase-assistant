@@ -99,6 +99,7 @@ class InMemoryChunkVectorStore:
 class ChromaChunkVectorStore:
     def __init__(self, persist_path: str, collection_name: str = "code_chunks") -> None:
         chromadb: Any = import_module("chromadb")
+        _clear_chroma_system_cache()
         self._client: Any = chromadb.PersistentClient(path=persist_path)
         self._collection: Any = self._client.get_or_create_collection(collection_name)
 
@@ -178,6 +179,17 @@ class ChromaChunkVectorStore:
 
 def _copied_chunk_id(source_chunk_id: str, target_snapshot_id: str) -> str:
     return sha256(f"{source_chunk_id}|{target_snapshot_id}".encode()).hexdigest()
+
+
+def _clear_chroma_system_cache() -> None:
+    try:
+        client_module: Any = import_module("chromadb.api.client")
+        shared_client = getattr(client_module, "SharedSystemClient", None)
+        clear_cache = getattr(shared_client, "clear_system_cache", None)
+        if callable(clear_cache):
+            clear_cache()
+    except Exception:
+        return
 
 
 def _chroma_metadata(metadata: dict[str, str | int | bool | None]) -> dict[str, MetadataValue]:
