@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 
 from app.api import routes
 from app.api.runtime import StreamDependencies
+from app.chunking.chunker import chunk_file
 from app.core.errors import AppError
 from app.indexing.keyword_index import SQLiteKeywordIndex
 from app.indexing.vector_store import InMemoryChunkVectorStore
@@ -74,6 +75,35 @@ def test_clone_paths_use_generated_internal_repo_ids(tmp_path: Path) -> None:
     assert "repo-name" not in str(tracked.local_path)
 
 
+def test_registry_restores_indexed_repositories_from_clones_and_keyword_index(
+    tmp_path: Path,
+) -> None:
+    clones_dir = tmp_path / "clones"
+    repo_id = "repo-123"
+    clone = _init_repo(clones_dir / repo_id)
+    _git(clone, "remote", "add", "origin", "https://github.com/owner/restored.git")
+    (clone / "app.py").write_text("def target():\n    return 1\n")
+    _git(clone, "add", ".")
+    _git(clone, "commit", "-m", "initial")
+    head = _git(clone, "rev-parse", "HEAD")
+    sqlite_path = tmp_path / "index.sqlite3"
+    keyword_index = SQLiteKeywordIndex(sqlite_path)
+    keyword_index.add_chunks(
+        repo_id,
+        "snap-1",
+        chunk_file(repo_id, "snap-1", "app.py", "def target():\n    return 1\n"),
+    )
+
+    registry = InMemoryRepositoryRegistry(clones_dir, sqlite_path)
+
+    restored = registry.list_repositories()
+    assert len(restored) == 1
+    assert restored[0].repo_id == repo_id
+    assert restored[0].url == "https://github.com/owner/restored"
+    assert restored[0].active_snapshot_id == "snap-1"
+    assert restored[0].active_commit == head
+
+
 class StaticEmbeddingProvider:
     model = "test/embedding"
 
@@ -134,7 +164,7 @@ class _RepoURL:
 
 
 def _init_repo(path: Path) -> Path:
-    path.mkdir()
+    path.mkdir(parents=True)
     _git(path, "init")
     return path
 

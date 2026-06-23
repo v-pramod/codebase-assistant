@@ -113,6 +113,25 @@ def test_chat_stream_endpoint_uses_runtime_dependencies_for_sse(tmp_path: Path) 
     assert "app.py" in response.text
 
 
+def test_chat_stream_rejects_snapshot_from_another_repository() -> None:
+    client = TestClient(create_app())
+    submitted = client.post("/api/repositories", json={"url": "https://github.com/encode/active"})
+    repo_id = submitted.json()["repository_id"]
+    repository = routes._registry.get_repository(repo_id)
+    assert repository is not None
+    repository.active_snapshot_id = "snap-active"
+    created = client.post(f"/api/repositories/{repo_id}/chat-sessions", json={"title": "Chat"})
+
+    response = client.post(
+        f"/api/chat-sessions/{created.json()['session_id']}/messages/stream",
+        json={"content": "what is target?", "snapshot_id": "snap-other"},
+    )
+
+    assert "event: error" in response.text
+    assert "snapshot_not_active" in response.text
+    assert "event: retrieval_started" not in response.text
+
+
 def test_file_browser_lists_skipped_files_and_blocks_unsafe_previews(tmp_path: Path) -> None:
     (tmp_path / "src").mkdir()
     (tmp_path / ".git").mkdir()

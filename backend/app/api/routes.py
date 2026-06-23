@@ -1,4 +1,5 @@
 import json
+import logging
 from collections.abc import Iterator
 from uuid import uuid4
 
@@ -21,8 +22,13 @@ from app.jobs.initial_ingestion import ingest_repository_now
 from app.jobs.queue import enqueue_repository_ingestion, sync_repository_from_queue
 
 router = APIRouter()
-_registry = InMemoryRepositoryRegistry(get_settings().clones_dir)
-_chat_store = SQLiteChatStore(get_settings().data_dir / "chat.sqlite3")
+logger = logging.getLogger(__name__)
+_settings = get_settings()
+_registry = InMemoryRepositoryRegistry(
+    _settings.clones_dir,
+    _settings.sqlite_path if _settings.sqlite_path.is_absolute() else None,
+)
+_chat_store = SQLiteChatStore(_settings.data_dir / "chat.sqlite3")
 _stream_dependencies_override: StreamDependencies | None = None
 
 
@@ -244,6 +250,19 @@ def stream_chat_message(session_id: str, payload: ChatMessageSubmission) -> Stre
                     "Repository has no active snapshot for chat streaming.",
                     409,
                 )
+            if (
+                repository.active_snapshot_id is not None
+                and snapshot_id != repository.active_snapshot_id
+            ):
+                raise AppError(
+                    "snapshot_not_active",
+                    "Chat stream snapshot does not match the repository's active snapshot.",
+                    409,
+                    {
+                        "active_snapshot_id": repository.active_snapshot_id,
+                        "requested_snapshot_id": snapshot_id,
+                    },
+                )
             dependencies = _stream_dependencies()
             if not _chat_store.list_messages(session_id):
                 generated_title = _summarize_question_as_title(
@@ -271,6 +290,7 @@ def stream_chat_message(session_id: str, payload: ChatMessageSubmission) -> Stre
                 {"code": exc.code, "message": exc.message, "details": exc.details},
             )
         except Exception:
+            logger.exception("Chat streaming failed before completion.")
             yield _sse(
                 "error",
                 {
