@@ -23,7 +23,7 @@ row when done.
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
 | 001  | Remove the no-op `X-OpenRouter-Cache` header | P1 | S | — | DONE |
-| 002  | Persist chat turns only after answering succeeds | P1 | S | — | TODO |
+| 002  | Persist chat turns only after answering succeeds | P1 | S | — | DONE |
 | 003  | Fix keyword-hit scoring so refusal & ranking work | P1 | M | — | TODO |
 | 004  | Push vector search into the store (ANN, no full scan) | P2 | M | 003 | TODO |
 
