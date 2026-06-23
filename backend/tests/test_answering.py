@@ -4,7 +4,7 @@ from pathlib import Path
 from app.chunking.chunker import chunk_file
 from app.indexing.indexer import index_chunks
 from app.indexing.keyword_index import SQLiteKeywordIndex
-from app.indexing.vector_store import InMemoryChunkVectorStore
+from app.indexing.vector_store import InMemoryChunkVectorStore, VectorRecord
 from app.retrieval.answering import ChatMessage, Citation, answer_question
 
 
@@ -136,3 +136,27 @@ def test_keyword_match_without_semantic_support_still_refuses(tmp_path: Path) ->
     )
 
     assert result.refused is True
+
+
+def test_query_similar_returns_top_matches_by_cosine() -> None:
+    store = InMemoryChunkVectorStore()
+    store.add_records(
+        [
+            VectorRecord(
+                "a", [1.0, 0.0, 0.0], "alpha",
+                {"repo_id": "r", "snapshot_id": "s", "active": True,
+                 "path": "a.py", "start_line": 1, "end_line": 1},
+            ),
+            VectorRecord(
+                "b", [0.0, 1.0, 0.0], "beta",
+                {"repo_id": "r", "snapshot_id": "s", "active": True,
+                 "path": "b.py", "start_line": 1, "end_line": 1},
+            ),
+        ],
+        "test-embedding",
+    )
+
+    results = store.query_similar("r", "s", [1.0, 0.0, 0.0], 1)
+
+    assert [record.chunk_id for record, _ in results] == ["a"]
+    assert results[0][1] == 1.0
