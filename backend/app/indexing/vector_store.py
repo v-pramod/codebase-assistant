@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from hashlib import sha256
 from importlib import import_module
+from math import sqrt
 from typing import Any, Protocol
 
 type MetadataValue = str | int | float | bool
@@ -22,6 +23,14 @@ class ChunkVectorStore(Protocol):
     def add_records(self, records: list[VectorRecord], embedding_model: str) -> None: ...
 
     def active_records(self, repo_id: str, snapshot_id: str) -> list[VectorRecord]: ...
+
+    def query_similar(
+        self,
+        repo_id: str,
+        snapshot_id: str,
+        query_embedding: list[float],
+        limit: int,
+    ) -> list[tuple[VectorRecord, float]]: ...
 
     def deactivate_snapshot(self, repo_id: str, snapshot_id: str) -> None: ...
 
@@ -63,6 +72,20 @@ class InMemoryChunkVectorStore:
             and record.metadata.get("active") is True
         ]
 
+    def query_similar(
+        self,
+        repo_id: str,
+        snapshot_id: str,
+        query_embedding: list[float],
+        limit: int,
+    ) -> list[tuple[VectorRecord, float]]:
+        scored = [
+            (record, _cosine_similarity(query_embedding, record.embedding))
+            for record in self.active_records(repo_id, snapshot_id)
+        ]
+        scored.sort(key=lambda item: item[1], reverse=True)
+        return scored[:limit]
+
     def deactivate_snapshot(self, repo_id: str, snapshot_id: str) -> None:
         for record in self.records:
             if (
@@ -101,7 +124,9 @@ class ChromaChunkVectorStore:
         chromadb: Any = import_module("chromadb")
         _clear_chroma_system_cache()
         self._client: Any = chromadb.PersistentClient(path=persist_path)
-        self._collection: Any = self._client.get_or_create_collection(collection_name)
+        self._collection: Any = self._client.get_or_create_collection(
+            collection_name, metadata={"hnsw:space": "cosine"}
+        )
 
     def add_records(self, records: list[VectorRecord], embedding_model: str) -> None:
         if not records:
@@ -137,6 +162,35 @@ class ChromaChunkVectorStore:
             )
             for index in range(len(ids))
         ]
+
+    def query_similar(
+        self,
+        repo_id: str,
+        snapshot_id: str,
+        query_embedding: list[float],
+        limit: int,
+    ) -> list[tuple[VectorRecord, float]]:
+        result = self._collection.query(
+            query_embeddings=[query_embedding],
+            n_results=limit,
+            where={"$and": [{"repo_id": repo_id}, {"snapshot_id": snapshot_id}, {"active": True}]},
+            include=["embeddings", "documents", "metadatas", "distances"],
+        )
+        ids = result.get("ids", [[]])[0]
+        embeddings = result.get("embeddings", [[]])[0]
+        documents = result.get("documents", [[]])[0]
+        metadatas = result.get("metadatas", [[]])[0]
+        distances = result.get("distances", [[]])[0]
+        scored: list[tuple[VectorRecord, float]] = []
+        for index in range(len(ids)):
+            record = VectorRecord(
+                chunk_id=str(ids[index]),
+                embedding=[float(value) for value in embeddings[index]],
+                text=str(documents[index]),
+                metadata=dict(metadatas[index]),
+            )
+            scored.append((record, 1.0 - float(distances[index])))
+        return scored
 
     def deactivate_snapshot(self, repo_id: str, snapshot_id: str) -> None:
         result = self._collection.get(
@@ -194,3 +248,14 @@ def _clear_chroma_system_cache() -> None:
 
 def _chroma_metadata(metadata: dict[str, str | int | bool | None]) -> dict[str, MetadataValue]:
     return {key: value for key, value in metadata.items() if value is not None}
+
+
+def _cosine_similarity(left: list[float], right: list[float]) -> float:
+    if not left or not right or len(left) != len(right):
+        return 0.0
+    numerator = sum(left[index] * right[index] for index in range(len(left)))
+    left_norm = sqrt(sum(value * value for value in left))
+    right_norm = sqrt(sum(value * value for value in right))
+    if left_norm == 0 or right_norm == 0:
+        return 0.0
+    return numerator / (left_norm * right_norm)

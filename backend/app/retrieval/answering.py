@@ -1,5 +1,4 @@
 from dataclasses import dataclass, replace
-from math import sqrt
 from typing import Protocol
 
 from app.indexing.embeddings import EmbeddingProvider
@@ -113,10 +112,8 @@ def retrieve_evidence(
 ) -> list[Evidence]:
     query_embedding = embedding_provider.embed_texts([question])[0]
     merged: dict[str, Evidence] = {}
-    for record in vector_store.active_records(repo_id, snapshot_id):
-        evidence = _evidence_from_vector(
-            record, _cosine_similarity(query_embedding, record.embedding)
-        )
+    for record, score in vector_store.query_similar(repo_id, snapshot_id, query_embedding, limit):
+        evidence = _evidence_from_vector(record, score)
         merged[evidence.chunk_id] = evidence
     for hit in keyword_index.search_active(repo_id, snapshot_id, question):
         existing = merged.get(hit.chunk_id)
@@ -168,14 +165,3 @@ def _evidence_from_vector(record: VectorRecord, score: float) -> Evidence:
         text=record.text,
         score=score,
     )
-
-
-def _cosine_similarity(left: list[float], right: list[float]) -> float:
-    if not left or not right or len(left) != len(right):
-        return 0.0
-    numerator = sum(left[index] * right[index] for index in range(len(left)))
-    left_norm = sqrt(sum(value * value for value in left))
-    right_norm = sqrt(sum(value * value for value in right))
-    if left_norm == 0 or right_norm == 0:
-        return 0.0
-    return numerator / (left_norm * right_norm)
