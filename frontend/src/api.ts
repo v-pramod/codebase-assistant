@@ -71,7 +71,7 @@ export type FilePreview = {
 export type StreamEvent =
   | { event: "retrieval_started"; data: Record<string, unknown> }
   | { event: "sources"; data: Citation[] | { citations?: Citation[]; sources?: Citation[] } }
-  | { event: "token"; data: { token?: string; delta?: string } }
+  | { event: "token"; data: string | { token?: string; delta?: string } }
   | { event: "final"; data: { message?: ChatMessage; citations?: Citation[]; content?: string } }
   | { event: "error"; data: { code: string; message: string; details?: unknown } };
 

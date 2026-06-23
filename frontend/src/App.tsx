@@ -75,6 +75,14 @@ export default function App() {
     [activeRepoId, repositories.data?.repositories],
   );
 
+  useEffect(() => {
+    setSelectedSessionId(null);
+    setSelectedCitation(null);
+    setSelectedFilePath(null);
+    setPendingUserMessage(null);
+    setStream(EMPTY_STREAM);
+  }, [activeRepoId]);
+
   const job = useQuery({
     queryKey: ["ingestion-job", trackedJobId],
     queryFn: () => getIngestionJob(trackedJobId!),
@@ -185,10 +193,14 @@ export default function App() {
           }));
         }
         if (event.event === "token") {
+          const token =
+            typeof event.data === "string"
+              ? event.data
+              : (event.data.token ?? event.data.delta ?? "");
           setStream((current) => ({
             ...current,
             status: "streaming",
-            text: current.text + (event.data.token ?? event.data.delta ?? ""),
+            text: current.text + token,
           }));
         }
         if (event.event === "final") {
