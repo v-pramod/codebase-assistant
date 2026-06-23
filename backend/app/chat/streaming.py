@@ -28,12 +28,12 @@ def stream_chat_answer(
     repo_url: str | None = None,
 ) -> Iterator[dict[str, object]]:
     yield {"event": "retrieval_started", "data": {"session_id": session_id}}
-    store.add_message(session_id, "user", user_message)
     history = [
         ChatMessage(message.role, message.content)
         for message in store.list_messages(session_id)
         if message.role in {"user", "assistant"}
     ]
+    history.append(ChatMessage("user", user_message))
     result = answer_question(
         repo_id,
         snapshot_id,
@@ -45,6 +45,7 @@ def stream_chat_answer(
         chat_provider,
         options,
     )
+    store.add_message(session_id, "user", user_message)
     citations = [
         _snapshot_citation(citation, repo_id, commit_sha, repo_url) for citation in result.citations
     ]

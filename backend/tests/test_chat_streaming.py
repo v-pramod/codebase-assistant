@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from pathlib import Path
 
+import pytest
+
 from app.chat.store import SQLiteChatStore
 from app.chat.streaming import stream_chat_answer
 from app.chunking.chunker import chunk_file
@@ -90,6 +92,39 @@ def test_stream_persists_messages_and_final_matches_streamed_answer(tmp_path: Pa
     assert persisted[-1].citations[0].github_permalink == (
         "https://github.com/owner/repo/blob/abc123/app.py#L1-L2"
     )
+
+
+def test_provider_failure_does_not_persist_user_message(tmp_path: Path) -> None:
+    store = SQLiteChatStore(tmp_path / "chat.sqlite3")
+    session = store.create_session("repo-1", "Target")
+    vector_store = InMemoryChunkVectorStore()
+    keyword_index = SQLiteKeywordIndex(tmp_path / "index.sqlite3")
+    embedding_provider = DeterministicEmbeddingProvider()
+    chunks = chunk_file("repo-1", "snap-1", "app.py", "def target():\n    return 1\n")
+    index_chunks("repo-1", "snap-1", chunks, embedding_provider, vector_store, keyword_index)
+
+    class FailingChatProvider:
+        model = "test-chat"
+
+        def answer(self, prompt: str, citations: list[Citation]) -> str:
+            raise RuntimeError("provider boom")
+
+    with pytest.raises(RuntimeError):
+        list(
+            stream_chat_answer(
+                store,
+                session.session_id,
+                "repo-1",
+                "snap-1",
+                "target",
+                embedding_provider,
+                vector_store,
+                keyword_index,
+                FailingChatProvider(),
+            )
+        )
+
+    assert store.list_messages(session.session_id) == []
 
 
 def test_full_history_is_stored_but_prompt_uses_bounded_recent_window(tmp_path: Path) -> None:
