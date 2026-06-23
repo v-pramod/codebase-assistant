@@ -6,7 +6,7 @@ from app.indexing.embeddings import OpenRouterEmbeddingProvider
 from app.llm.openrouter import OpenRouterChatProvider
 
 
-def test_chat_provider_sends_openrouter_cache_header() -> None:
+def test_chat_provider_sends_authorization_header() -> None:
     calls: list[dict[str, Any]] = []
 
     def post(*args: Any, **kwargs: Any) -> httpx.Response:
@@ -21,13 +21,10 @@ def test_chat_provider_sends_openrouter_cache_header() -> None:
 
     assert provider.answer("question", []) == "answer"
     assert calls[0]["args"][0].endswith("/chat/completions")
-    assert calls[0]["kwargs"]["headers"] == {
-        "Authorization": "Bearer test-key",
-        "X-OpenRouter-Cache": "true",
-    }
+    assert calls[0]["kwargs"]["headers"] == {"Authorization": "Bearer test-key"}
 
 
-def test_embedding_provider_sends_openrouter_cache_header() -> None:
+def test_embedding_provider_sends_authorization_header() -> None:
     calls: list[dict[str, Any]] = []
 
     def post(*args: Any, **kwargs: Any) -> httpx.Response:
@@ -42,7 +39,4 @@ def test_embedding_provider_sends_openrouter_cache_header() -> None:
 
     assert provider.embed_texts(["hello"]) == [[1.0, 2.0, 3.0]]
     assert calls[0]["args"][0].endswith("/embeddings")
-    assert calls[0]["kwargs"]["headers"] == {
-        "Authorization": "Bearer test-key",
-        "X-OpenRouter-Cache": "true",
-    }
+    assert calls[0]["kwargs"]["headers"] == {"Authorization": "Bearer test-key"}

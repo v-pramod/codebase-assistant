@@ -4,8 +4,6 @@ from typing import Protocol
 
 import httpx
 
-from app.llm.openrouter_headers import openrouter_headers
-
 
 class EmbeddingProviderError(Exception):
     pass
@@ -33,7 +31,7 @@ class OpenRouterEmbeddingProvider:
         try:
             response = post(
                 f"{self.base_url}/embeddings",
-                headers=openrouter_headers(self.api_key),
+                headers={"Authorization": f"Bearer {self.api_key}"},
                 json={"model": self.model, "input": texts},
                 timeout=self.timeout_seconds,
             )
