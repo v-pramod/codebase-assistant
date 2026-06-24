@@ -18,6 +18,8 @@ import {
 } from "lucide-react";
 import { FormEvent, KeyboardEvent, ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   Citation,
   ChatMessage,
@@ -413,7 +415,12 @@ function SessionList({ sessions, selected, onSelect }: { sessions: ChatSession[]
 }
 
 function MessageBubble({ message, onCitation }: { message: ChatMessage; onCitation: (citation: Citation) => void }) {
-  return <article className={`message ${message.role}`}><p>{message.content}</p><InlineCitations citations={message.citations} onCitation={onCitation} /></article>;
+  return (
+    <article className={`message ${message.role}`}>
+      {message.role === "user" ? <p>{message.content}</p> : <MarkdownContent content={message.content} />}
+      <InlineCitations citations={message.citations} onCitation={onCitation} />
+    </article>
+  );
 }
 
 function PendingUserBubble({ content }: { content: string }) {
@@ -421,7 +428,21 @@ function PendingUserBubble({ content }: { content: string }) {
 }
 
 function StreamingBubble({ stream, onCitation }: { stream: StreamState; onCitation: (citation: Citation) => void }) {
-  return <article className="message assistant streaming"><p>{stream.text}<span className="stream-caret" /></p><InlineCitations citations={stream.citations} onCitation={onCitation} /></article>;
+  return (
+    <article className="message assistant streaming">
+      <MarkdownContent content={stream.text} />
+      <span className="stream-caret" />
+      <InlineCitations citations={stream.citations} onCitation={onCitation} />
+    </article>
+  );
+}
+
+function MarkdownContent({ content }: { content: string }) {
+  return (
+    <div className="markdown">
+      <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+    </div>
+  );
 }
 
 function InlineCitations({ citations, onCitation }: { citations: Citation[]; onCitation: (citation: Citation) => void }) {

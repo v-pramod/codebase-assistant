@@ -3,18 +3,18 @@ import { FormEvent, useState } from "react";
 import { login } from "../auth";
 
 export default function Login({ onAuthenticated }: { onAuthenticated: (token: string) => void }) {
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    if (!email.trim() || !password || submitting) return;
+    if (!username.trim() || !password || submitting) return;
     setSubmitting(true);
     setError(null);
     try {
-      const token = await login(email.trim(), password);
+      const token = await login(username.trim(), password);
       onAuthenticated(token);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign in failed.");
@@ -31,14 +31,14 @@ export default function Login({ onAuthenticated }: { onAuthenticated: (token: st
         </p>
         <h1>Sign in</h1>
         <label>
-          Email
+          Username
           <input
-            type="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            placeholder="you@example.com"
+            type="text"
+            value={username}
+            onChange={(event) => setUsername(event.target.value)}
+            placeholder="Your username"
             autoComplete="username"
-            aria-label="Email"
+            aria-label="Username"
           />
         </label>
         <label>
@@ -53,7 +53,7 @@ export default function Login({ onAuthenticated }: { onAuthenticated: (token: st
           />
         </label>
         {error && <p className="login-error">{error}</p>}
-        <button disabled={submitting || !email.trim() || !password}>
+        <button disabled={submitting || !username.trim() || !password}>
           <LogIn size={16} /> {submitting ? "Signing in" : "Sign in"}
         </button>
       </form>

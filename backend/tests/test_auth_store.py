@@ -8,48 +8,48 @@ from app.auth.store import SQLiteUserStore
 
 def test_create_and_get_user(tmp_path: Path) -> None:
     store = SQLiteUserStore(tmp_path / "auth.sqlite3")
-    store.create_user("user@example.com", "hash-1")
+    store.create_user("user", "hash-1")
 
-    record = store.get_by_email("user@example.com")
+    record = store.get_by_username("user")
     assert record is not None
-    assert record.email == "user@example.com"
+    assert record.username == "user"
     assert record.password_hash == "hash-1"
     assert record.is_active is True
     assert record.created_at
 
 
-def test_get_unknown_email_returns_none(tmp_path: Path) -> None:
+def test_get_unknown_username_returns_none(tmp_path: Path) -> None:
     store = SQLiteUserStore(tmp_path / "auth.sqlite3")
-    assert store.get_by_email("nobody@example.com") is None
+    assert store.get_by_username("nobody") is None
 
 
-def test_duplicate_email_raises(tmp_path: Path) -> None:
+def test_duplicate_username_raises(tmp_path: Path) -> None:
     store = SQLiteUserStore(tmp_path / "auth.sqlite3")
-    store.create_user("dup@example.com", "hash-1")
+    store.create_user("dup", "hash-1")
     with pytest.raises(sqlite3.IntegrityError):
-        store.create_user("dup@example.com", "hash-2")
+        store.create_user("dup", "hash-2")
 
 
-def test_email_is_normalized_on_write_and_lookup(tmp_path: Path) -> None:
+def test_username_is_normalized_on_write_and_lookup(tmp_path: Path) -> None:
     store = SQLiteUserStore(tmp_path / "auth.sqlite3")
-    store.create_user("  MixedCase@Example.com  ", "hash-1")
+    store.create_user("  MixedCase  ", "hash-1")
 
-    record = store.get_by_email("mixedcase@example.com")
+    record = store.get_by_username("mixedcase")
     assert record is not None
-    assert record.email == "mixedcase@example.com"
-    # Lookup also normalizes the queried email.
-    assert store.get_by_email("  MIXEDCASE@EXAMPLE.COM ") is not None
+    assert record.username == "mixedcase"
+    # Lookup also normalizes the queried username.
+    assert store.get_by_username("  MIXEDCASE ") is not None
 
 
 def test_list_users_and_set_active(tmp_path: Path) -> None:
     store = SQLiteUserStore(tmp_path / "auth.sqlite3")
-    store.create_user("a@example.com", "hash-a")
-    store.create_user("b@example.com", "hash-b")
+    store.create_user("a", "hash-a")
+    store.create_user("b", "hash-b")
 
-    emails = {user.email for user in store.list_users()}
-    assert emails == {"a@example.com", "b@example.com"}
+    usernames = {user.username for user in store.list_users()}
+    assert usernames == {"a", "b"}
 
-    store.set_active("a@example.com", False)
-    record = store.get_by_email("a@example.com")
+    store.set_active("a", False)
+    record = store.get_by_username("a")
     assert record is not None
     assert record.is_active is False

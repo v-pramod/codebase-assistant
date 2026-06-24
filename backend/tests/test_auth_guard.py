@@ -3,7 +3,7 @@ from fastapi.testclient import TestClient
 from app.main import create_app
 
 # Mirrors the seeded user in conftest.py's `client` fixture.
-TEST_EMAIL = "tester@example.com"
+TEST_USERNAME = "tester"
 TEST_PASSWORD = "test-password"
 
 
@@ -27,7 +27,7 @@ def test_login_is_public(client: TestClient) -> None:
     # The `client` fixture has repointed the user store at a seeded user.
     no_auth = TestClient(create_app())
     response = no_auth.post(
-        "/api/auth/login", json={"email": TEST_EMAIL, "password": TEST_PASSWORD}
+        "/api/auth/login", json={"username": TEST_USERNAME, "password": TEST_PASSWORD}
     )
     assert response.status_code == 200
 
@@ -41,4 +41,4 @@ def test_malformed_token_is_401() -> None:
 def test_auth_me_returns_current_user(client: TestClient) -> None:
     response = client.get("/api/auth/me")
     assert response.status_code == 200
-    assert response.json()["email"] == TEST_EMAIL
+    assert response.json()["username"] == TEST_USERNAME

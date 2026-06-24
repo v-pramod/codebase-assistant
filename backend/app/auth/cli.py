@@ -13,7 +13,7 @@ def main(argv: list[str] | None = None) -> int:
         prog="codebase-assistant-adduser",
         description="Create an invite-only user for the codebase assistant.",
     )
-    parser.add_argument("email", help="Email address of the user to create.")
+    parser.add_argument("username", help="Username of the user to create.")
     parser.add_argument(
         "--password",
         help="Password (omit to be prompted securely; intended for scripting/tests).",
@@ -28,12 +28,12 @@ def main(argv: list[str] | None = None) -> int:
     settings = get_settings()
     store = SQLiteUserStore(settings.data_dir / "auth.sqlite3")
     try:
-        user = store.create_user(args.email, hash_password(password))
+        user = store.create_user(args.username, hash_password(password))
     except sqlite3.IntegrityError:
-        print(f"A user with email {args.email} already exists.", file=sys.stderr)
+        print(f"A user with username {args.username} already exists.", file=sys.stderr)
         return 1
 
-    print(f"Created user {user.email}.")
+    print(f"Created user {user.username}.")
     return 0
 
 

@@ -16,14 +16,14 @@ export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY);
 }
 
-export async function login(email: string, password: string): Promise<string> {
+export async function login(username: string, password: string): Promise<string> {
   const response = await fetch(`${API_BASE}/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ username, password }),
   });
   if (!response.ok) {
-    throw new Error("Invalid email or password.");
+    throw new Error("Invalid username or password.");
   }
   const data = (await response.json()) as { access_token: string; token_type: string };
   setToken(data.access_token);

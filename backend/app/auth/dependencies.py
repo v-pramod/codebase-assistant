@@ -18,10 +18,10 @@ def get_current_user(authorization: str | None = Header(default=None)) -> UserRe
         raise unauthorized
     token = authorization[len(_BEARER_PREFIX) :].strip()
     try:
-        email = decode_access_token(token, get_settings())
+        username = decode_access_token(token, get_settings())
     except AuthError as exc:
         raise unauthorized from exc
-    user = routes._user_store.get_by_email(email)
+    user = routes._user_store.get_by_username(username)
     if user is None or not user.is_active:
         raise unauthorized
     return user

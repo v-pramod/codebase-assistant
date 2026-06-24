@@ -52,7 +52,7 @@ class ChatMessageSubmission(BaseModel):
 
 
 class LoginSubmission(BaseModel):
-    email: str
+    username: str
     password: str
 
 
@@ -63,19 +63,19 @@ def health() -> dict[str, str]:
 
 @public_router.post("/auth/login")
 def login(payload: LoginSubmission) -> dict[str, str]:
-    invalid = AppError("unauthorized", "Invalid email or password.", 401)
-    user = _user_store.get_by_email(payload.email)
+    invalid = AppError("unauthorized", "Invalid username or password.", 401)
+    user = _user_store.get_by_username(payload.username)
     if user is None or not user.is_active:
         raise invalid
     if not verify_password(payload.password, user.password_hash):
         raise invalid
-    token = create_access_token(user.email, get_settings())
+    token = create_access_token(user.username, get_settings())
     return {"access_token": token, "token_type": "bearer"}
 
 
 @router.get("/auth/me")
 def auth_me(user: UserRecord = Depends(get_current_user)) -> dict[str, object]:
-    return {"email": user.email, "is_active": user.is_active}
+    return {"username": user.username, "is_active": user.is_active}
 
 
 @router.get("/diagnostics")

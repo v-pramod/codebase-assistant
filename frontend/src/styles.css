@@ -132,6 +132,25 @@ small, .repo-tile small, .citation-list small { color: var(--muted); }
 .message.streaming { box-shadow: 0 0 0 1px rgba(120, 214, 180, 0.16), 0 24px 70px rgba(120, 214, 180, 0.08); }
 .message.pending { opacity: 0.78; }
 .stream-caret { display: inline-block; width: 0.55em; height: 1.05em; margin-left: 2px; border-radius: 999px; background: var(--oxide); vertical-align: -0.14em; animation: blink 900ms steps(2, start) infinite; }
+.markdown { line-height: 1.6; }
+.markdown > *:first-child { margin-top: 0; }
+.markdown > *:last-child { margin-bottom: 0; }
+.markdown p { margin: 0 0 10px; line-height: 1.6; }
+.markdown h1, .markdown h2, .markdown h3, .markdown h4 { margin: 16px 0 8px; line-height: 1.3; font-weight: 600; }
+.markdown h1 { font-size: 1.25rem; }
+.markdown h2 { font-size: 1.12rem; }
+.markdown h3 { font-size: 1rem; }
+.markdown ul, .markdown ol { margin: 0 0 10px; padding-left: 1.4em; }
+.markdown li { margin: 3px 0; }
+.markdown li > p { margin: 0; }
+.markdown a { color: var(--brass); text-decoration: underline; }
+.markdown blockquote { margin: 0 0 10px; padding: 2px 12px; border-left: 3px solid var(--line); color: rgba(255,255,255,0.72); }
+.markdown code { font-family: "JetBrains Mono", monospace; font-size: 0.82em; background: rgba(120,214,180,0.1); border: 1px solid rgba(120,214,180,0.18); border-radius: 6px; padding: 1px 5px; }
+.markdown pre { margin: 0 0 10px; padding: 12px 14px; overflow: auto; border: 1px solid var(--line); border-radius: 14px; background: rgba(5, 7, 6, 0.7); }
+.markdown pre code { background: none; border: none; padding: 0; font-size: 0.8rem; line-height: 1.5; }
+.markdown table { border-collapse: collapse; margin: 0 0 10px; font-size: 0.86rem; }
+.markdown th, .markdown td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; }
+.markdown hr { border: none; border-top: 1px solid var(--line); margin: 14px 0; }
 .inline-citations { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
 .inline-citations button { border: 1px solid rgba(120,214,180,0.38); color: var(--oxide); background: rgba(120,214,180,0.08); border-radius: 999px; padding: 6px 9px; font-family: "JetBrains Mono", monospace; font-size: 0.72rem; }
 .inline-citations button.stale { border-color: rgba(224,106,63,0.55); color: var(--rust); background: rgba(224,106,63,0.1); }
