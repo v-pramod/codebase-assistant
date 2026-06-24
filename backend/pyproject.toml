@@ -21,6 +21,7 @@ dependencies = [
 
 [project.scripts]
 codebase-assistant-worker = "app.worker:main"
+codebase-assistant-adduser = "app.auth.cli:main"
 
 [build-system]
 requires = ["hatchling"]
