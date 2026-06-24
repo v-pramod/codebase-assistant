@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     openrouter_api_key: str | None = None
     openrouter_chat_model: str = "deepseek/deepseek-chat"
     openrouter_embedding_model: str = "openai/text-embedding-3-small"
+    jwt_secret: str = "dev-insecure-change-me"
+    jwt_algorithm: str = "HS256"
+    access_token_ttl_minutes: int = 720  # 12h
 
     def diagnostics(self) -> dict[str, str | int]:
         return {
