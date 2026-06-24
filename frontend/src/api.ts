@@ -1,3 +1,5 @@
+import { clearToken, getToken } from "./auth";
+
 export type Repository = {
   repository_id: string;
   url: string;
@@ -92,13 +94,40 @@ export class ApiError extends Error {
   }
 }
 
+export class UnauthorizedError extends Error {
+  constructor(message = "Your session has expired. Please sign in again.") {
+    super(message);
+    this.name = "UnauthorizedError";
+  }
+}
+
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "/api";
+
+export const UNAUTHORIZED_EVENT = "auth:unauthorized";
+
+function authHeaders(extra?: HeadersInit): HeadersInit {
+  const token = getToken();
+  return {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...extra,
+  };
+}
+
+function handleUnauthorized(): UnauthorizedError {
+  clearToken();
+  window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
+  return new UnauthorizedError();
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
-    headers: { "Content-Type": "application/json", ...init?.headers },
     ...init,
+    headers: authHeaders(init?.headers),
   });
+  if (response.status === 401) {
+    throw handleUnauthorized();
+  }
   if (!response.ok) {
     let payload: ApiErrorPayload = {};
     try {
@@ -174,9 +203,12 @@ export async function streamChatMessage(
 ) {
   const response = await fetch(`${API_BASE}/chat-sessions/${sessionId}/messages/stream`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: authHeaders(),
     body: JSON.stringify({ content, snapshot_id: snapshotId }),
   });
+  if (response.status === 401) {
+    throw handleUnauthorized();
+  }
   if (!response.ok || response.body === null) {
     throw new Error("Unable to open chat stream.");
   }
