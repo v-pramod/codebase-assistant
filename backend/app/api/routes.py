@@ -8,6 +8,9 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from app.api.runtime import StreamDependencies, build_stream_dependencies
+from app.auth.passwords import verify_password
+from app.auth.store import SQLiteUserStore
+from app.auth.tokens import create_access_token
 from app.chat.store import ChatMessageRecord, SQLiteChatStore
 from app.chat.streaming import stream_chat_answer
 from app.core.config import get_settings
@@ -29,6 +32,7 @@ _registry = InMemoryRepositoryRegistry(
     _settings.sqlite_path if _settings.sqlite_path.is_absolute() else None,
 )
 _chat_store = SQLiteChatStore(_settings.data_dir / "chat.sqlite3")
+_user_store = SQLiteUserStore(_settings.data_dir / "auth.sqlite3")
 _stream_dependencies_override: StreamDependencies | None = None
 
 
@@ -45,9 +49,26 @@ class ChatMessageSubmission(BaseModel):
     snapshot_id: str | None = None
 
 
+class LoginSubmission(BaseModel):
+    email: str
+    password: str
+
+
 @router.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@router.post("/auth/login")
+def login(payload: LoginSubmission) -> dict[str, str]:
+    invalid = AppError("unauthorized", "Invalid email or password.", 401)
+    user = _user_store.get_by_email(payload.email)
+    if user is None or not user.is_active:
+        raise invalid
+    if not verify_password(payload.password, user.password_hash):
+        raise invalid
+    token = create_access_token(user.email, get_settings())
+    return {"access_token": token, "token_type": "bearer"}
 
 
 @router.get("/diagnostics")
