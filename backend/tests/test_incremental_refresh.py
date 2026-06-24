@@ -11,7 +11,6 @@ from app.indexing.keyword_index import SQLiteKeywordIndex
 from app.indexing.vector_store import InMemoryChunkVectorStore
 from app.ingestion.filtering import FileFilterLimits
 from app.ingestion.refresh import plan_incremental_refresh, read_file_at_commit
-from app.main import create_app
 
 
 class StaticEmbeddingProvider:
@@ -176,8 +175,7 @@ def test_successful_refresh_promotion_deactivates_previous_snapshot(tmp_path: Pa
     assert vector_store.active_records("repo-1", "snap-new") != []
 
 
-def test_refresh_endpoint_exposes_failure_state_before_initial_index() -> None:
-    client = TestClient(create_app())
+def test_refresh_endpoint_exposes_failure_state_before_initial_index(client: TestClient) -> None:
     submitted = client.post("/api/repositories", json={"url": "https://github.com/encode/httpx"})
     repo_id = submitted.json()["repository_id"]
 

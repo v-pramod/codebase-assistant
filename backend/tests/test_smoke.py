@@ -1,11 +1,7 @@
 from fastapi.testclient import TestClient
 
-from app.main import create_app
 
-
-def test_backend_exposes_health_and_non_secret_diagnostics() -> None:
-    client = TestClient(create_app())
-
+def test_backend_exposes_health_and_non_secret_diagnostics(client: TestClient) -> None:
     health = client.get("/api/health")
     diagnostics = client.get("/api/diagnostics")
 

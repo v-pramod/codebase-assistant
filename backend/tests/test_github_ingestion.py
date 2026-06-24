@@ -12,7 +12,6 @@ from app.indexing.keyword_index import SQLiteKeywordIndex
 from app.indexing.vector_store import InMemoryChunkVectorStore
 from app.ingestion.github import validate_github_repo_url
 from app.jobs.ingestion import InMemoryRepositoryRegistry
-from app.main import create_app
 
 
 def test_github_url_validation_accepts_public_https_repo_urls() -> None:
@@ -41,6 +40,7 @@ def test_github_url_validation_rejects_unsafe_inputs(url: str) -> None:
 
 
 def test_repository_submission_enqueues_pollable_job_status(
+    client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     enqueued: list[str] = []
@@ -49,7 +49,6 @@ def test_repository_submission_enqueues_pollable_job_status(
         "enqueue_repository_ingestion",
         lambda repository, _settings: enqueued.append(repository.repo_id),
     )
-    client = TestClient(create_app())
 
     submitted = client.post("/api/repositories", json={"url": "https://github.com/encode/httpx"})
 
@@ -119,7 +118,7 @@ class StaticChatProvider:
 
 
 def test_repository_submission_runs_initial_ingestion_when_provider_is_configured(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     remote = _init_repo(tmp_path / "remote")
     (remote / "app.py").write_text("def target():\n    return 1\n")
@@ -140,7 +139,6 @@ def test_repository_submission_runs_initial_ingestion_when_provider_is_configure
     test_registry = InMemoryRepositoryRegistry(tmp_path / "clones")
     routes._registry = test_registry
     try:
-        client = TestClient(create_app())
         submitted = client.post("/api/repositories", json={"url": "https://github.com/owner/repo"})
     finally:
         routes._registry = original_registry

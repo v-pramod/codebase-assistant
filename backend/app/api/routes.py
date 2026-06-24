@@ -3,13 +3,14 @@ import logging
 from collections.abc import Iterator
 from uuid import uuid4
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from app.api.runtime import StreamDependencies, build_stream_dependencies
+from app.auth.dependencies import get_current_user
 from app.auth.passwords import verify_password
-from app.auth.store import SQLiteUserStore
+from app.auth.store import SQLiteUserStore, UserRecord
 from app.auth.tokens import create_access_token
 from app.chat.store import ChatMessageRecord, SQLiteChatStore
 from app.chat.streaming import stream_chat_answer
@@ -25,6 +26,7 @@ from app.jobs.initial_ingestion import ingest_repository_now
 from app.jobs.queue import enqueue_repository_ingestion, sync_repository_from_queue
 
 router = APIRouter()
+public_router = APIRouter()
 logger = logging.getLogger(__name__)
 _settings = get_settings()
 _registry = InMemoryRepositoryRegistry(
@@ -54,12 +56,12 @@ class LoginSubmission(BaseModel):
     password: str
 
 
-@router.get("/health")
+@public_router.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@router.post("/auth/login")
+@public_router.post("/auth/login")
 def login(payload: LoginSubmission) -> dict[str, str]:
     invalid = AppError("unauthorized", "Invalid email or password.", 401)
     user = _user_store.get_by_email(payload.email)
@@ -69,6 +71,11 @@ def login(payload: LoginSubmission) -> dict[str, str]:
         raise invalid
     token = create_access_token(user.email, get_settings())
     return {"access_token": token, "token_type": "bearer"}
+
+
+@router.get("/auth/me")
+def auth_me(user: UserRecord = Depends(get_current_user)) -> dict[str, object]:
+    return {"email": user.email, "is_active": user.is_active}
 
 
 @router.get("/diagnostics")
