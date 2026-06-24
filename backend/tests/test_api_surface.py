@@ -13,7 +13,6 @@ from app.indexing.indexer import index_chunks
 from app.indexing.keyword_index import SQLiteKeywordIndex
 from app.indexing.vector_store import InMemoryChunkVectorStore
 from app.ingestion.filtering import FileFilterLimits
-from app.main import create_app
 from app.retrieval.answering import Citation
 
 
@@ -33,9 +32,9 @@ class CitedChatProvider:
         return f"See `{citations[0].label}`."
 
 
-def test_repository_selection_and_chat_session_endpoints_are_available() -> None:
-    client = TestClient(create_app())
-
+def test_repository_selection_and_chat_session_endpoints_are_available(
+    client: TestClient,
+) -> None:
     submitted = client.post(
         "/api/repositories", json={"url": "https://github.com/encode/starlette"}
     )
@@ -59,9 +58,9 @@ def test_repository_selection_and_chat_session_endpoints_are_available() -> None
     assert messages.json() == {"messages": []}
 
 
-def test_chat_stream_endpoint_returns_indexing_error_before_active_snapshot() -> None:
-    client = TestClient(create_app())
-
+def test_chat_stream_endpoint_returns_indexing_error_before_active_snapshot(
+    client: TestClient,
+) -> None:
     submitted = client.post("/api/repositories", json={"url": "https://github.com/encode/httpcore"})
     repo_id = submitted.json()["repository_id"]
     created = client.post(f"/api/repositories/{repo_id}/chat-sessions", json={"title": "Chat"})
@@ -77,8 +76,9 @@ def test_chat_stream_endpoint_returns_indexing_error_before_active_snapshot() ->
     assert "repository_not_indexed" in response.text
 
 
-def test_chat_stream_endpoint_uses_runtime_dependencies_for_sse(tmp_path: Path) -> None:
-    client = TestClient(create_app())
+def test_chat_stream_endpoint_uses_runtime_dependencies_for_sse(
+    client: TestClient, tmp_path: Path
+) -> None:
     submitted = client.post("/api/repositories", json={"url": "https://github.com/encode/sse"})
     repo_id = submitted.json()["repository_id"]
     repository = routes._registry.get_repository(repo_id)
@@ -113,8 +113,7 @@ def test_chat_stream_endpoint_uses_runtime_dependencies_for_sse(tmp_path: Path) 
     assert "app.py" in response.text
 
 
-def test_chat_stream_rejects_snapshot_from_another_repository() -> None:
-    client = TestClient(create_app())
+def test_chat_stream_rejects_snapshot_from_another_repository(client: TestClient) -> None:
     submitted = client.post("/api/repositories", json={"url": "https://github.com/encode/active"})
     repo_id = submitted.json()["repository_id"]
     repository = routes._registry.get_repository(repo_id)
@@ -172,8 +171,7 @@ def test_file_browser_lists_skipped_files_and_blocks_unsafe_previews(tmp_path: P
         read_file_preview(tmp_path, "../outside.py", FileFilterLimits(max_file_bytes=100))
 
 
-def test_chat_message_payload_marks_old_citation_snapshots_stale() -> None:
-    client = TestClient(create_app())
+def test_chat_message_payload_marks_old_citation_snapshots_stale(client: TestClient) -> None:
     submitted = client.post("/api/repositories", json={"url": "https://github.com/encode/stale"})
     repo_id = submitted.json()["repository_id"]
     repository = routes._registry.get_repository(repo_id)

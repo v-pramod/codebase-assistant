@@ -10,6 +10,7 @@ import {
   FolderTree,
   GitBranch,
   Loader2,
+  LogOut,
   MessageSquarePlus,
   PanelRightOpen,
   Send,
@@ -22,6 +23,7 @@ import {
   ChatMessage,
   ChatSession,
   FileEntry,
+  UNAUTHORIZED_EVENT,
   createChatSession,
   getFileContent,
   getIngestionJob,
@@ -33,6 +35,8 @@ import {
   streamChatMessage,
   submitRepository,
 } from "./api";
+import { clearToken, getToken } from "./auth";
+import Login from "./components/Login";
 
 type StreamState = {
   text: string;
@@ -50,6 +54,29 @@ function hasActiveRepositoryJob(repositories: { status: string }[] | undefined) 
 }
 
 export default function App() {
+  const [token, setToken] = useState<string | null>(getToken());
+
+  useEffect(() => {
+    const handleUnauthorized = () => setToken(null);
+    window.addEventListener(UNAUTHORIZED_EVENT, handleUnauthorized);
+    return () => window.removeEventListener(UNAUTHORIZED_EVENT, handleUnauthorized);
+  }, []);
+
+  if (!token) {
+    return <Login onAuthenticated={setToken} />;
+  }
+
+  return (
+    <Workspace
+      onSignOut={() => {
+        clearToken();
+        setToken(null);
+      }}
+    />
+  );
+}
+
+function Workspace({ onSignOut }: { onSignOut: () => void }) {
   const queryClient = useQueryClient();
   const [repoUrl, setRepoUrl] = useState("");
   const [selectedRepoId, setSelectedRepoId] = useState<string | null>(null);
@@ -256,6 +283,9 @@ export default function App() {
           <p className="eyebrow"><Sparkles size={14} /> Local public-repo RAG console</p>
           <h1>Interrogate a codebase without losing sight of the source.</h1>
         </div>
+        <button className="ghost-button sign-out" onClick={onSignOut}>
+          <LogOut size={15} /> Sign out
+        </button>
         <form className="repo-form" onSubmit={handleSubmitRepo}>
           <input
             value={repoUrl}
